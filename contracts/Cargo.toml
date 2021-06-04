@@ -1,0 +1,31 @@
+[package]
+name = "test-contract-sim"
+version = "0.1.0"
+authors = ["zcstarr <zcstarr@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# remember to include a line for each contract
+
+[dependencies]
+#near-sdk = { git = "https://github.com/near/near-sdk-rs.git" }
+
+[dev-dependencies]
+near-sdk = "3.1.0"
+counter = { path = "./counter" }
+near-sdk-sim = "3.2.0"
+#near-sdk-sim = { git = "https://github.com/near/near-sdk-rs.git" }
+
+[profile.release]
+codegen-units = 1
+# Tell `rustc` to optimize for small code size.
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
+
+[workspace]
+members = [
+  "counter",
+]
