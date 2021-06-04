@@ -1,0 +1,48 @@
+{
+  "name": "@shipsgold/ships-contracts-client",
+  "version": "0.0.1",
+  "description": "Ships smart contracts and js api",
+  "main": "build/src/index.js",
+  "scripts": {
+    "migrate:client": "mkdir -p src/generated/client && cp ./generated-client/custom/typescript/src/*.ts src/generated/client/",
+    "gen:client": "npx --no-install open-rpc-generator generate -c ships-open-rpc-contract-gen-config.json && npm run migrate:client",
+    "build:contracts": "bash contracts/build.sh",
+    "build": "npx --no-install tsc && npm run build:contracts && npm run gen:client",
+    "dev:deploy": "npx --no-install near dev-deploy contracts/res/counter.wasm",
+    "dev:deploy2": "npx --no-install near dev-deploy contracts/res/counter.wasm --initFunction new --initArgs {'owner_id': 'example-contract.testnet', 'total_supply': '10000000'}",
+    "test:fast": "npx --no-install jest --testTimeout 10000 --coverage",
+    "test": "npm run build && npm run dev:deploy && npm run test:fast"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zcstarr/ships-contracts.git"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/zcstarr/ships-contracts/issues"
+  },
+  "homepage": "https://github.com/zcstarr/ships-contracts#readme",
+  "devDependencies": {
+    "@open-rpc/generator": "^1.19.0",
+    "@types/body-parser": "^1.19.0",
+    "@types/connect": "^3.4.34",
+    "@types/cors": "^2.8.10",
+    "@types/fs-extra": "^9.0.11",
+    "@types/jest": "^26.0.23",
+    "@types/lodash": "^4.14.170",
+    "@types/node": "^15.6.1",
+    "@types/rimraf": "^3.0.0",
+    "fs-extra": "^10.0.0",
+    "jest": "^27.0.1",
+    "near-cli": "^2.0.1",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^27.0.1",
+    "typescript": "^4.3.2"
+  },
+  "dependencies": {
+    "@open-rpc/client-js": "^1.7.0",
+    "@shipsgold/open-rpc-near-client-generator": "^1.0.3",
+    "near-api-js": "^0.41.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "openrpcDocument": "./src/counter_openrpc.json",
+  "outDir": "./generated-client",
+  "components": [
+      {
+          "type": "custom",
+          "name": "@shipsgold/ships-contract-client",
+          "language": "typescript",
+          "customComponent": "@shipsgold/open-rpc-near-client-generator",
+          "customType": "client"
+      } 
+  ]
+}
