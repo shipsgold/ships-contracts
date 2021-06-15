@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/shipsgold/ships-contracts/compare/1.0.0...1.0.1) (2021-06-15)
+
+
+### Bug Fixes
+
+* update package.json version bump ([88c8c96](https://github.com/shipsgold/ships-contracts/commit/88c8c9629c35558d8c07a325f5048e631d0ca8c9))
+
 # 1.0.0 (2021-06-15)
 
 
