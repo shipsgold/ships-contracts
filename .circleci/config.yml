@@ -36,7 +36,7 @@ jobs:
       - run:
           name: "Update Node.js and npm"
           command: |
-            curl -sSL "https://nodejs.org/dist/v15.10.0/node-v15.10.0-linux-x64.tar.gz" | sudo tar --strip-components=2 -xJ -C /usr/local/bin/ node-v15.10.0-linux-x64/bin/node
+            curl -sSL "https://nodejs.org/dist/v15.10.0/node-v15.10.0-linux-x64.tar.xz" | sudo tar --strip-components=2 -xJ -C /usr/local/bin/ node-v15.10.0-linux-x64/bin/node
             curl https://www.npmjs.com/install.sh | sudo bash
       - run: npm install
       - run: npm install codecov
@@ -54,7 +54,7 @@ jobs:
       - run:
           name: "Update Node.js and npm"
           command: |
-            curl -sSL "https://nodejs.org/dist/v15.10.0/node-v15.10.0-linux-x64.tar.gz" | sudo tar --strip-components=2 -xJ -C /usr/local/bin/ node-v15.10.0-linux-x64/bin/node
+            curl -sSL "https://nodejs.org/dist/v15.10.0/node-v15.10.0-linux-x64.tar.xz" | sudo tar --strip-components=2 -xJ -C /usr/local/bin/ node-v15.10.0-linux-x64/bin/node
             curl https://www.npmjs.com/install.sh | sudo bash
       - run: npm install
       - run: npm run build
