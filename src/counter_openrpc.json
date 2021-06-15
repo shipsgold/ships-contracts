@@ -2,8 +2,8 @@
   "openrpc":"1.2.4",
   "info": {
     "version": "0.0.1",
-    "description": "Test API",
-    "title": "TestContractApi"
+    "description": "Ships Contract",
+    "title": "ShipsContract"
   },
   "methods": [
     {
@@ -17,6 +17,21 @@
         "schema": {
           "type":"number"
         } 
+      }
+    },
+    {
+      "name": "add_guest",
+      "params": [{
+        "$ref": "#/components/contentDescriptors/pubKey"
+      }],
+      "tags": [{
+        "$ref": "#/components/tags/change"
+      }],
+      "result":{
+        "name":"GuestResult",
+        "schema": {
+          "type":"null"
+        }
       }
     },
     {
@@ -79,10 +94,22 @@
       }
     },
     "contentDescriptors": {
-      
+     "pubKey": {
+       "name": "access_key",
+       "schema": {
+         "title": "PubKey",
+         "type": "string"
+       },
+       "required": true
+     } 
     },
     "schemas": {
-
+      "PubKey": {
+        "title": "pub_key",
+        "schema": {
+          "type": "string"
+        }
+      }
     }
   }
 }

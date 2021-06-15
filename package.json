@@ -9,8 +9,7 @@
     "build:contracts": "bash contracts/build.sh",
     "build": "npx --no-install tsc && npm run build:contracts && npm run gen:client",
     "dev:deploy": "npx --no-install near dev-deploy contracts/res/counter.wasm",
-    "dev:deploy2": "npx --no-install near dev-deploy contracts/res/counter.wasm --initFunction new --initArgs {'owner_id': 'example-contract.testnet', 'total_supply': '10000000'}",
-    "test:fast": "npx --no-install jest --testTimeout 10000 --coverage",
+    "test:fast": "npx --no-install jest --testTimeout 20000 --coverage",
     "test": "npm run build && npm run dev:deploy && npm run test:fast"
   },
   "repository": {

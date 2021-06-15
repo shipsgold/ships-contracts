@@ -7,6 +7,7 @@ import { MethodCallValidator, MethodNotFoundError } from "@open-rpc/schema-utils
 import { Account, Near, Contract} from "near-api-js";
 import BN from "bn.js"
 
+export type PubKey = string;
 export type OwnerId = string;
 export type Count = number;
 export type NumberHo1ClIqD = number;
@@ -16,8 +17,9 @@ export type NullQu0Arl1F = null;
  * Generated! Represents an alias to any of the provided schemas
  *
  */
-export type AnyOfOwnerIdCountNumberHo1ClIqDNumberHo1ClIqDNullQu0Arl1F = OwnerId | Count | NumberHo1ClIqD | NullQu0Arl1F;
+export type AnyOfPubKeyOwnerIdCountNumberHo1ClIqDNullQu0Arl1FNumberHo1ClIqDNullQu0Arl1F = PubKey | OwnerId | Count | NumberHo1ClIqD | NullQu0Arl1F;
 export type Increment = () => Promise<NumberHo1ClIqD>;
+export type AddGuest = (access_key: PubKey) => Promise<NullQu0Arl1F>;
 export type GetCount = () => Promise<NumberHo1ClIqD>;
 export type New = (owner_id: OwnerId, count: Count) => Promise<NullQu0Arl1F>;
 
@@ -27,6 +29,13 @@ export type New = (owner_id: OwnerId, count: Count) => Promise<NullQu0Arl1F>;
   // tslint:disable-next-line:max-line-length
   type GTIncrement = [...Parameters<Increment>, ChangeMethodOptions?]
   type RTIncrement = ReturnType<Increment>
+
+  /**
+   * Generated typings 
+   */
+  // tslint:disable-next-line:max-line-length
+  type GTAddGuest = [...Parameters<AddGuest>, ChangeMethodOptions?]
+  type RTAddGuest = ReturnType<AddGuest>
 
   /**
    * Generated typings 
@@ -60,16 +69,17 @@ const isMetaObject = (x: any): boolean => {
   return false
 }
 
-export class TestContractApi {
-  public static openrpcDocument: OpenRPC = {"openrpc":"1.2.4","info":{"version":"0.0.1","description":"Test API","title":"TestContractApi"},"methods":[{"name":"increment","params":[],"tags":[{"name":"change","description":"change method"}],"result":{"name":"count","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"name":"get_count","params":[],"tags":[{"name":"view","description":"view method"}],"result":{"name":"countResult","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"result":{"name":"InitResult","required":false,"schema":{"type":"null","title":"null_Qu0Arl1F"}},"name":"new","description":"initialization method","tags":[{"name":"change","description":"change method"}],"params":[{"name":"owner_id","required":true,"schema":{"title":"owner_id","type":"string"}},{"name":"count","required":true,"schema":{"title":"count","type":"number"}}]}],"components":{"tags":{"change":{"name":"change","description":"change method"},"view":{"name":"view","description":"view method"}},"contentDescriptors":{},"schemas":{}}} ;
+export class ShipsContract {
+  public static openrpcDocument: OpenRPC = {"openrpc":"1.2.4","info":{"version":"0.0.1","description":"Ships Contract","title":"ShipsContract"},"methods":[{"name":"increment","params":[],"tags":[{"name":"change","description":"change method"}],"result":{"name":"count","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"name":"add_guest","params":[{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true}],"tags":[{"name":"change","description":"change method"}],"result":{"name":"GuestResult","schema":{"type":"null","title":"null_Qu0Arl1F"}}},{"name":"get_count","params":[],"tags":[{"name":"view","description":"view method"}],"result":{"name":"countResult","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"result":{"name":"InitResult","required":false,"schema":{"type":"null","title":"null_Qu0Arl1F"}},"name":"new","description":"initialization method","tags":[{"name":"change","description":"change method"}],"params":[{"name":"owner_id","required":true,"schema":{"title":"owner_id","type":"string"}},{"name":"count","required":true,"schema":{"title":"count","type":"number"}}]}],"components":{"tags":{"change":{"name":"change","description":"change method"},"view":{"name":"view","description":"view method"}},"contentDescriptors":{"pubKey":{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true}},"schemas":{"PubKey":{"title":"pub_key","schema":{"type":"string"}}}}} ;
   public contract: Contract;
   private validator: MethodCallValidator;
 
   constructor(options: Options) {
     const {account, contractId} = options;
-    this.validator = new MethodCallValidator(TestContractApi.openrpcDocument);
+    this.validator = new MethodCallValidator(ShipsContract.openrpcDocument);
     const changeMethods:string[] = [
       "increment",
+      "add_guest",
       "new",
     ] 
 
@@ -98,6 +108,28 @@ export class TestContractApi {
     ]
     const paramByName = _.zipObject(paramNames, params);
     return (this.contract as any).increment({args: paramByName}) as RTIncrement 
+  }
+  
+  /**
+   * 
+   */
+  // tslint:disable-next-line:max-line-length
+  public add_guest(...params: GTAddGuest): RTAddGuest {
+    //return this.request("add_guest", params);
+    if(isMetaObject(params.slice(1))){
+    let metaData = params.pop() as ChangeMethodOptions;
+    const paramNames:string[] = [  
+      "access_key",
+    ]
+
+    const paramByName = _.zipObject(paramNames, params);
+    return (this.contract as any).add_guest({args: paramByName, ...metaData}) as RTAddGuest 
+    }
+    const paramNames:string[] = [  
+      "access_key",
+    ]
+    const paramByName = _.zipObject(paramNames, params);
+    return (this.contract as any).add_guest({args: paramByName}) as RTAddGuest 
   }
   
   /**
@@ -145,4 +177,4 @@ export class TestContractApi {
   }
   
 }
-export default TestContractApi;
+export default ShipsContract;

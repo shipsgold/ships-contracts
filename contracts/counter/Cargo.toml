@@ -13,3 +13,4 @@ uint = { version = "0.8.3", default-features = false }
 
 [dev-dependencies]
 near-sdk-sim = "3.2.0"
+bs58 = "0.4"
