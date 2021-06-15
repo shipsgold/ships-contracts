@@ -29,7 +29,7 @@ jobs:
   test:
     <<: *defaults
     docker:
-      - image: circleci/1.51-buster
+      - image: circleci/rust:1.51-buster
     steps:
       - checkout
       - restore_cache: *restore-deps-cache
@@ -47,7 +47,7 @@ jobs:
   build:
     <<: *defaults
     docker:
-      - image: circleci/1.51-buster
+      - image: circleci/rust:1.51-buster
     steps:
       - checkout
       - restore_cache: *restore-deps-cache
@@ -63,7 +63,7 @@ jobs:
   release:
     <<: *defaults
     docker:
-      - image: circleci/1.51-buster
+      - image: circleci/rust:1.51-buster
     steps:
       - checkout
       - restore_cache: *restore-deps-cache
