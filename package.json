@@ -8,7 +8,7 @@
     "gen:client": "npx --no-install open-rpc-generator generate -c ships-open-rpc-contract-gen-config.json && npm run migrate:client",
     "build:contracts": "bash contracts/build.sh",
     "build": "npx --no-install tsc && npm run build:contracts && npm run gen:client",
-    "dev:deploy": "node_modules/bin/near-cli/bin/near dev-deploy contracts/res/counter.wasm <<< n",
+    "dev:deploy": "echo n | near dev-deploy contracts/res/counter.wasm",
     "test:fast": "npx --no-install jest --testTimeout 20000 --coverage",
     "test": "npm run build && npm run dev:deploy && npm run test:fast"
   },
