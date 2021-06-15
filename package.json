@@ -3,7 +3,6 @@
   "version": "0.0.1",
   "description": "Ships smart contracts and js api",
   "main": "build/src/index.js",
-  "private":"false",
   "scripts": {
     "migrate:client": "mkdir -p src/generated/client && cp ./generated-client/custom/typescript/src/*.ts src/generated/client/",
     "gen:client": "npx --no-install open-rpc-generator generate -c ships-open-rpc-contract-gen-config.json && npm run migrate:client",
