@@ -14,14 +14,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zcstarr/ships-contracts.git"
+    "url": "git+https://github.com/shipsgold/ships-contracts.git"
   },
   "author": "",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/zcstarr/ships-contracts/issues"
+    "url": "https://github.com/shipsgold/ships-contracts/issues"
   },
-  "homepage": "https://github.com/zcstarr/ships-contracts#readme",
+  "homepage": "https://github.com/shipsgold/ships-contracts#readme",
   "devDependencies": {
     "@open-rpc/generator": "^1.19.0",
     "@types/body-parser": "^1.19.0",
