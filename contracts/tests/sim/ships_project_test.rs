@@ -18,7 +18,7 @@ fn simulate_some_view_function() {
   
 
 
-  assert_eq!(8, actual);
+  assert_eq!(9, actual);
   
 }
 
@@ -26,12 +26,12 @@ fn simulate_some_view_function() {
 fn simulate_some_change_method() {
     let (root, contract, _zane) = init();
 
-    let bobby = root.create_user(String::from("bobby"), to_yocto("0.0000000000000000000001"));
+    let bobby = root.create_user(String::from("bobby"), to_yocto("1.0000000000000000000003"));
     let signer = InMemorySigner::from_seed("testuser", KeyType::ED25519, "testseed");
     let base_key = Base58PublicKey::try_from(bobby.signer.public_key().try_to_vec().unwrap()).unwrap();
     let result = call!(
           root,
-          contract.add_guest(base_key)
+          contract.add_guest(base_key, "funnyuser_id".to_string())
       );
 
     assert!(result.is_ok());
