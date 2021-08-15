@@ -13,7 +13,9 @@ use std::collections::HashMap;
 mod internal;
 mod math;
 mod account;
+mod page;
 
+use page::{PaginationOptions,PaginationResponse};
 type CodeId = String;
 setup_alloc!();
 
@@ -36,13 +38,13 @@ enum StorageKey {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-#[cfg_attr(feature = "test", derive(Clone, Debug))]
+#[cfg_attr(test, derive(Clone, Debug))]
 pub enum ProjectOrigin {
     Github
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
-#[cfg_attr(feature = "test", derive(Clone, Debug))]
+#[cfg_attr(test, derive(Clone, Debug))]
 pub struct Project {
   name: String,
   owner: AccountId,
@@ -52,7 +54,7 @@ pub struct Project {
 }
 // This allows for the project details to change
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
-#[cfg_attr(feature = "test", derive(Clone, Debug))]
+#[cfg_attr(test, derive(Clone, Debug))]
 pub struct ProjectDetails {
   repo: String,
   org: String,
@@ -60,7 +62,7 @@ pub struct ProjectDetails {
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
-#[cfg_attr(feature = "test", derive(Clone, Debug))]
+#[cfg_attr(test, derive(Clone, Debug))]
 pub struct Release {
   version: String,
   releaser: AccountId,
@@ -237,7 +239,9 @@ impl Contract {
             id: project_id,
             details
         };
-        self.owner_to_projects.get(&project.owner).unwrap().push( &project.id);
+        let mut projects = self.owner_to_projects.get(&project.owner).unwrap();
+        projects.push(&project_id);
+        self.owner_to_projects.insert(&project.owner, &projects);
         self.project_id_to_project.insert(&project.id, &project);
 
         if refund > 0 {
@@ -249,6 +253,20 @@ impl Contract {
 
     pub fn get_project(&self, project_id: ProjectId) -> Option<Project>{
         self.project_id_to_project.get(&project_id)
+    }
+
+    pub fn get_projects(&self, owner_id: AccountId, options: Option<PaginationOptions>) -> Vec<ProjectId>{
+        let projects = self.owner_to_projects.get(&owner_id).unwrap();
+        let opt = options.unwrap_or_default();
+        let mut range = (opt.from..std::cmp::min(opt.from + opt.limit, projects.len()));
+
+        if opt.reverse {
+            let from = std::cmp::min(opt.from - opt.limit, 0);
+            range = (from..std::cmp::min(opt.from, projects.len()));
+        }
+            range
+            .map(|index| projects.get(index).unwrap())
+            .collect()
     }
 
     #[payable]
@@ -323,7 +341,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(test)]
     fn test_basic() {
         let mut context = get_context(get_sponsor(),
         get_contract_id(), 
@@ -342,7 +359,8 @@ mod tests {
             repo: "ships-contract".to_string(),
         });
         let project = contract.get_project(1);
-        println!("{:?}", project.unwrap().name);
+        let projects = contract.get_projects("bob".to_string(), None);
+        println!("{:?}", project);
 /*        let mut contract = Contract {
             owner: accounts(1),
             val: 0,
