@@ -8,6 +8,7 @@ import { Account, Near, Contract} from "near-api-js";
 import BN from "bn.js"
 
 export type PubKey = string;
+export type CodeId = string;
 export type OwnerId = string;
 export type Count = number;
 export type NumberHo1ClIqD = number;
@@ -17,9 +18,10 @@ export type NullQu0Arl1F = null;
  * Generated! Represents an alias to any of the provided schemas
  *
  */
-export type AnyOfPubKeyOwnerIdCountNumberHo1ClIqDNullQu0Arl1FNumberHo1ClIqDNullQu0Arl1F = PubKey | OwnerId | Count | NumberHo1ClIqD | NullQu0Arl1F;
+export type AnyOfPubKeyCodeIdPubKeyOwnerIdCountNumberHo1ClIqDNullQu0Arl1FCodeIdNumberHo1ClIqDNullQu0Arl1F = PubKey | CodeId | OwnerId | Count | NumberHo1ClIqD | NullQu0Arl1F;
 export type Increment = () => Promise<NumberHo1ClIqD>;
-export type AddGuest = (access_key: PubKey) => Promise<NullQu0Arl1F>;
+export type AddGuest = (access_key: PubKey, code_id: CodeId) => Promise<NullQu0Arl1F>;
+export type GuestCodeId = (access_key: PubKey) => Promise<CodeId>;
 export type GetCount = () => Promise<NumberHo1ClIqD>;
 export type New = (owner_id: OwnerId, count: Count) => Promise<NullQu0Arl1F>;
 
@@ -36,6 +38,13 @@ export type New = (owner_id: OwnerId, count: Count) => Promise<NullQu0Arl1F>;
   // tslint:disable-next-line:max-line-length
   type GTAddGuest = [...Parameters<AddGuest>, ChangeMethodOptions?]
   type RTAddGuest = ReturnType<AddGuest>
+
+  /**
+   * Generated typings 
+   */
+  // tslint:disable-next-line:max-line-length
+  type GTGuestCodeId = [...Parameters<GuestCodeId>, ChangeMethodOptions?]
+  type RTGuestCodeId = ReturnType<GuestCodeId>
 
   /**
    * Generated typings 
@@ -69,14 +78,14 @@ const isMetaObject = (x: any): boolean => {
   return false
 }
 
-export class ShipsContract {
-  public static openrpcDocument: OpenRPC = {"openrpc":"1.2.4","info":{"version":"0.0.1","description":"Ships Contract","title":"ShipsContract"},"methods":[{"name":"increment","params":[],"tags":[{"name":"change","description":"change method"}],"result":{"name":"count","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"name":"add_guest","params":[{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true}],"tags":[{"name":"change","description":"change method"}],"result":{"name":"GuestResult","schema":{"type":"null","title":"null_Qu0Arl1F"}}},{"name":"get_count","params":[],"tags":[{"name":"view","description":"view method"}],"result":{"name":"countResult","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"result":{"name":"InitResult","required":false,"schema":{"type":"null","title":"null_Qu0Arl1F"}},"name":"new","description":"initialization method","tags":[{"name":"change","description":"change method"}],"params":[{"name":"owner_id","required":true,"schema":{"title":"owner_id","type":"string"}},{"name":"count","required":true,"schema":{"title":"count","type":"number"}}]}],"components":{"tags":{"change":{"name":"change","description":"change method"},"view":{"name":"view","description":"view method"}},"contentDescriptors":{"pubKey":{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true}},"schemas":{"PubKey":{"title":"pub_key","schema":{"type":"string"}}}}} ;
+export class ShipsProjectContract {
+  public static openrpcDocument: OpenRPC = {"openrpc":"1.2.4","info":{"version":"0.0.1","description":"Ships Project Contract","title":"ShipsProjectContract"},"methods":[{"name":"increment","params":[],"tags":[{"name":"change","description":"change method"}],"result":{"name":"count","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"name":"add_guest","params":[{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true},{"name":"code_id","schema":{"title":"code_id","type":"string"},"required":true}],"tags":[{"name":"change","description":"change method"}],"result":{"name":"GuestResult","schema":{"type":"null","title":"null_Qu0Arl1F"}}},{"name":"guest_code_id","params":[{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true}],"tags":[{"name":"view","description":"view method"}],"result":{"name":"GuestCodeIdResult","schema":{"title":"code_id","type":"string"}}},{"name":"get_count","params":[],"tags":[{"name":"view","description":"view method"}],"result":{"name":"countResult","schema":{"type":"number","title":"number_Ho1clIqD"}}},{"result":{"name":"InitResult","required":false,"schema":{"type":"null","title":"null_Qu0Arl1F"}},"name":"new","description":"initialization method","tags":[{"name":"change","description":"change method"}],"params":[{"name":"owner_id","required":true,"schema":{"title":"owner_id","type":"string"}},{"name":"count","required":true,"schema":{"title":"count","type":"number"}}]}],"components":{"tags":{"change":{"name":"change","description":"change method"},"view":{"name":"view","description":"view method"}},"contentDescriptors":{"pubKey":{"name":"access_key","schema":{"title":"PubKey","type":"string"},"required":true},"CodeId":{"name":"code_id","schema":{"title":"code_id","type":"string"},"required":true}},"schemas":{"PubKey":{"title":"pub_key","schema":{"type":"string"}},"CodeId":{"title":"code_id","type":"string"}}}} ;
   public contract: Contract;
   private validator: MethodCallValidator;
 
   constructor(options: Options) {
     const {account, contractId} = options;
-    this.validator = new MethodCallValidator(ShipsContract.openrpcDocument);
+    this.validator = new MethodCallValidator(ShipsProjectContract.openrpcDocument);
     const changeMethods:string[] = [
       "increment",
       "add_guest",
@@ -84,97 +93,124 @@ export class ShipsContract {
     ] 
 
     const viewMethods:string[] = [
+      "guest_code_id",
       "get_count",
     ]
     this.contract = new Contract(account,contractId, {changeMethods, viewMethods})
   }
 
   
+
   /**
+   * 
    * 
    */
   // tslint:disable-next-line:max-line-length
-  public increment(...params: GTIncrement): RTIncrement {
+  public increment(options?: ChangeMethodOptions): RTIncrement { 
     //return this.request("increment", params);
-    if(isMetaObject(params.slice(1))){
-    let metaData = params.pop() as ChangeMethodOptions;
     const paramNames:string[] = [ 
     ]
-
-    const paramByName = _.zipObject(paramNames, params);
-    return (this.contract as any).increment({args: paramByName, ...metaData}) as RTIncrement 
+    const arrArgs = Array.from(arguments); 
+    
+    const args =  options && Object.keys(options).length ? arrArgs.slice(0, arguments.length-1) : arrArgs
+    const paramByName = _.zipObject(paramNames, args);
+    if (options && Object.keys(options).length) {
+    return (this.contract as any).increment({args: paramByName, ...options}) as RTIncrement 
     }
-    const paramNames:string[] = [ 
-    ]
-    const paramByName = _.zipObject(paramNames, params);
+
     return (this.contract as any).increment({args: paramByName}) as RTIncrement 
   }
   
+
   /**
+   * 
    * 
    */
   // tslint:disable-next-line:max-line-length
-  public add_guest(...params: GTAddGuest): RTAddGuest {
+  public add_guest(access_key: PubKey, code_id: CodeId, options?: ChangeMethodOptions): RTAddGuest { 
     //return this.request("add_guest", params);
-    if(isMetaObject(params.slice(1))){
-    let metaData = params.pop() as ChangeMethodOptions;
     const paramNames:string[] = [  
-      "access_key",
+      "access_key", 
+      "code_id",
     ]
-
-    const paramByName = _.zipObject(paramNames, params);
-    return (this.contract as any).add_guest({args: paramByName, ...metaData}) as RTAddGuest 
+    const arrArgs = Array.from(arguments); 
+    
+    const args =  options && Object.keys(options).length ? arrArgs.slice(0, arguments.length-1) : arrArgs
+    const paramByName = _.zipObject(paramNames, args);
+    if (options && Object.keys(options).length) {
+    return (this.contract as any).add_guest({args: paramByName, ...options}) as RTAddGuest 
     }
-    const paramNames:string[] = [  
-      "access_key",
-    ]
-    const paramByName = _.zipObject(paramNames, params);
+
     return (this.contract as any).add_guest({args: paramByName}) as RTAddGuest 
   }
   
+
   /**
+   * 
    * 
    */
   // tslint:disable-next-line:max-line-length
-  public get_count(...params: GTGetCount): RTGetCount {
-    //return this.request("get_count", params);
-    if(isMetaObject(params.slice(1))){
-    let metaData = params.pop() as ChangeMethodOptions;
-    const paramNames:string[] = [ 
+  public guest_code_id(access_key: PubKey): RTGuestCodeId { 
+    //return this.request("guest_code_id", params);
+    const paramNames:string[] = [  
+      "access_key",
     ]
-
-    const paramByName = _.zipObject(paramNames, params);
-    return (this.contract as any).get_count({args: paramByName, ...metaData}) as RTGetCount 
+    const arrArgs = Array.from(arguments); 
+    const options = {}
+    const args =  options && Object.keys(options).length ? arrArgs.slice(0, arguments.length-1) : arrArgs
+    const paramByName = _.zipObject(paramNames, args);
+    if (options && Object.keys(options).length) {
+    return (this.contract as any).guest_code_id({args: paramByName, ...options}) as RTGuestCodeId 
     }
-    const paramNames:string[] = [ 
-    ]
-    const paramByName = _.zipObject(paramNames, params);
-    return (this.contract as any).get_count({args: paramByName}) as RTGetCount 
+
+    return (this.contract as any).guest_code_id(paramByName) as RTGuestCodeId 
+    
   }
   
+
   /**
+   * 
    * 
    */
   // tslint:disable-next-line:max-line-length
-  public new(...params: GTNew): RTNew {
-    //return this.request("new", params);
-    if(isMetaObject(params.slice(1))){
-    let metaData = params.pop() as ChangeMethodOptions;
-    const paramNames:string[] = [  
-      "owner_id", 
-      "count",
+  public get_count(): RTGetCount { 
+    //return this.request("get_count", params);
+    const paramNames:string[] = [ 
     ]
-
-    const paramByName = _.zipObject(paramNames, params);
-    return (this.contract as any).new({args: paramByName, ...metaData}) as RTNew 
+    const arrArgs = Array.from(arguments); 
+    const options = {}
+    const args =  options && Object.keys(options).length ? arrArgs.slice(0, arguments.length-1) : arrArgs
+    const paramByName = _.zipObject(paramNames, args);
+    if (options && Object.keys(options).length) {
+    return (this.contract as any).get_count({args: paramByName, ...options}) as RTGetCount 
     }
+
+    return (this.contract as any).get_count(paramByName) as RTGetCount 
+    
+  }
+  
+
+  /**
+   * 
+   * 
+   */
+  // tslint:disable-next-line:max-line-length
+  public new(owner_id: OwnerId, count: Count, options?: ChangeMethodOptions): RTNew { 
+    //return this.request("new", params);
     const paramNames:string[] = [  
       "owner_id", 
       "count",
     ]
-    const paramByName = _.zipObject(paramNames, params);
+    const arrArgs = Array.from(arguments); 
+    
+    const args =  options && Object.keys(options).length ? arrArgs.slice(0, arguments.length-1) : arrArgs
+    const paramByName = _.zipObject(paramNames, args);
+    if (options && Object.keys(options).length) {
+    return (this.contract as any).new({args: paramByName, ...options}) as RTNew 
+    }
+
     return (this.contract as any).new({args: paramByName}) as RTNew 
   }
   
 }
-export default ShipsContract;
+export default ShipsProjectContract;

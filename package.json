@@ -6,9 +6,11 @@
   "scripts": {
     "migrate:client": "mkdir -p src/generated/client && cp ./generated-client/custom/typescript/src/*.ts src/generated/client/",
     "gen:client": "npx --no-install open-rpc-generator generate -c ships-open-rpc-contract-gen-config.json && npm run migrate:client",
+    "bundle": "npm pack && mv shipsgold-ships-contracts-client-*.tgz shipsgold-ships-contract-client.tgz",
+    "bundle:clean": "rm shipsgold-ships-contracts-client*.tgz",
     "build:contracts": "bash contracts/build.sh",
     "build": "npx --no-install tsc && npm run build:contracts && npm run gen:client",
-    "dev:deploy": "echo n | near dev-deploy contracts/res/counter.wasm",
+    "dev:deploy": "echo n | near dev-deploy contracts/res/ships_project.wasm",
     "test:fast": "npx --no-install jest --testTimeout 25000 --coverage",
     "test": "npm run build && npm run dev:deploy && npm run test:fast"
   },
@@ -44,7 +46,7 @@
   },
   "dependencies": {
     "@open-rpc/client-js": "^1.7.0",
-    "@shipsgold/open-rpc-near-client-generator": "^1.0.3",
+    "@shipsgold/open-rpc-near-client-generator": "^1.2.1",
     "near-api-js": "^0.41.0"
   }
 }
