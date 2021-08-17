@@ -16,3 +16,4 @@ contracts/**/target
 **/*.DS_Store
 generated-client/
 *.tgz
+.idea
