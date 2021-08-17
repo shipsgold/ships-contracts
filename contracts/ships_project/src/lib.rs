@@ -1,10 +1,11 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{ValidAccountId, U128, Base58PublicKey, U64};
 use near_sdk::serde::{Serialize, Deserialize};
-use near_sdk::{BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, setup_alloc, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
+use near_sdk::{PromiseOrValue, BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, setup_alloc, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
 use near_sdk::log;
 use std::cmp::Ordering;
-use multi_token_standard::metadata::{MultiTokenMetadata};
+use multi_token_standard::metadata::{MultiTokenMetadataProvider, MultiTokenExtraMetadata};
+use multi_token_standard::{impl_multi_token_core_with_minter, impl_multi_token_storage};
 
 
 
@@ -18,6 +19,8 @@ mod page;
 
 use page::{PaginationOptions,PaginationResponse};
 use crate::ReleaseStatus::ACTIVE;
+use multi_token_standard::MultiToken;
+use std::convert::TryFrom;
 
 type CodeId = String;
 setup_alloc!();
@@ -29,15 +32,19 @@ type ProjectHash = Vec<u8>;
 
 const ACCESS_KEY_ALLOWANCE: u128 = 100_000_000_000_000_000_000_000_000;
 //const ACCESS_KEY_ALLOWANCE: u128 = 100_820_000_000_000_000_000_000;
-#[derive(BorshSerialize, BorshStorageKey)]
+#[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Guests,
     OwnerToProjects,
     ProjectIdToProject { project_id: Vec<u8> },
     ProjectIdsToProjects,
     ProjectHashToProjectId,
-    ProjectToReleases,
-    ProjectReleases {project_id: Vec<u8>}
+    ProjectToReleaseIds,
+    ProjectReleases {project_id: Vec<u8>},
+    ReleaseIdToReleases,
+    MultiTokenOwner,
+    MultiTokenMetadata,
+    MultiTokenSupply,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
@@ -126,11 +133,13 @@ pub struct Release {
 pub struct Contract {
     owner: ValidAccountId,
     val: i8,
+    token: MultiToken,
     guests: LookupSet<PublicKey>,
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
     project_hash_to_project_id: LookupMap<ProjectHash, ProjectId>,
     project_id_to_project: LookupMap<ProjectId, Project>,
-    project_to_releases: LookupMap<ProjectId, Vector<Release>>,
+    project_to_releases: LookupMap<ProjectId, Vector<ReleaseId>>,
+    release_id_to_release: LookupMap<ReleaseId, Release>,
     project_storage_usage: u64, 
     user_storage_usage: u64,
     guest_storage_usage: u64,
@@ -151,13 +160,18 @@ impl Contract {
         );
 
         let mut this = Self {
-            owner: owner_id,
+            owner: owner_id.clone(),
             val: 0,
+            token: MultiToken::new(StorageKey::MultiTokenOwner,
+                                   owner_id,
+                                   Some(StorageKey::MultiTokenMetadata),
+                                   StorageKey::MultiTokenSupply),
             guests: LookupSet::new(StorageKey::Guests),
             owner_to_projects: LookupMap::new(StorageKey::OwnerToProjects),
             project_hash_to_project_id: LookupMap::new(StorageKey::ProjectHashToProjectId),
             project_id_to_project: LookupMap::new(StorageKey::ProjectIdsToProjects),
-            project_to_releases: LookupMap::new(StorageKey::ProjectToReleases),
+            project_to_releases: LookupMap::new(StorageKey::ProjectToReleaseIds),
+            release_id_to_release: LookupMap::new(StorageKey::ReleaseIdToReleases),
             project_storage_usage: 0,
             user_storage_usage: 0,
             guest_storage_usage: 0,
@@ -265,7 +279,7 @@ impl Contract {
         self.project_storage_usage = project_storage_usage - initial_storage_usage;
 
         let mut releases = self.project_to_releases.get(&project.id).unwrap();
-        releases.push(&Release {
+        let release = Release {
             releaser: tmp_owner_id.clone(),
             release_id: self.inc_release_idx(),
             pre_allocation: 9u128,
@@ -274,7 +288,9 @@ impl Contract {
             version: Version { major: 0, minor: 1, patch: 1},
             name: tmp_details.clone(),
             status: ReleaseStatus::ACTIVE
-        });
+        };
+        releases.push(&release.release_id);
+        self.release_id_to_release.insert(&release.release_id, &release);
         self.project_to_releases.insert(&project.id, &releases);
         self.release_storage_usage = (env::storage_usage() - project_storage_usage);
 
@@ -351,8 +367,9 @@ impl Contract {
             .collect()
     }
 
+
     #[payable]
-    pub fn create_new_release(&mut self, project_id: ProjectId,  details: ReleaseDetails, terms: ReleaseTerms){
+    fn create_new_release(&mut self, project_id: ProjectId,  details: ReleaseDetails, terms: ReleaseTerms){
         let project = self.project_id_to_project.get(&project_id).unwrap_or_else(|| panic!("Project id: {} does not exist", project_id));
         assert_eq!(project.owner, env::predecessor_account_id());
 
@@ -365,7 +382,8 @@ impl Contract {
         let mut releases = self.project_to_releases.get(&project_id).unwrap();
         //verify version is increasing in nature and verify there are no active releases
         if releases.len() > 0 {
-            let release = releases.get(releases.len() - 1).unwrap();
+            let release_id = releases.get(releases.len() - 1).unwrap();
+            let release = self.release_id_to_release.get(&release_id).unwrap();
             assert_eq!(release.status, ReleaseStatus::CLOSED);
             if release.version > details.version {
                 panic!("Version is less than latest version {} {} {}",
@@ -374,23 +392,24 @@ impl Contract {
                        release.version.patch);
             }
         }
-
-        releases.push(&Release {
+        let new_release = &Release {
             name: details.name,
             version: details.version,
             max: terms.max,
             min: terms.min,
             pre_allocation: terms.pre_allocation.into(),
-            release_id: releases.len(),
+            release_id: self.inc_release_idx(),
             releaser: env::predecessor_account_id(),
             status: ACTIVE
-        });
+        };
+        self.release_id_to_release.insert(&new_release.release_id, &new_release);
+        releases.push(&new_release.release_id);
         self.project_to_releases.insert(&project_id, &releases);
+        self.internal_mint_release_token(&new_release.release_id, 1000);
     }
 
-    pub fn get_release(&self, project_id: ProjectId, release_id: ReleaseId)-> Option<Release> {
-        let releases = self.project_to_releases.get(&project_id).unwrap();
-        releases.get(release_id)
+    pub fn get_release(&self, release_id: ReleaseId)-> Option<Release> {
+        self.release_id_to_release.get(&release_id)
     }
 
     pub fn get_releases(&self, project_id: ProjectId, options: Option<PaginationOptions>)->Vec<Release> {
@@ -403,14 +422,32 @@ impl Contract {
             range = (from..std::cmp::min(opt.from, releases.len()));
         }
         range
-            .map(|index| releases.get(index).unwrap())
+            .map(|index| self.release_id_to_release.get(&releases.get(index).unwrap()).unwrap())
             .collect()
     }
 
-    #[payable]
-    pub fn mint_release_token(project_name: String){
+    fn internal_get_release_token_id(&self, release_id: &ReleaseId) -> multi_token_standard::TokenId {
+        format!("{:x}", release_id)
+    }
 
+    fn internal_mint_release_token(&mut self, release_id: &ReleaseId, amount: u128){
 
+        let token_id = self.internal_get_release_token_id(release_id);
+        // TODO valid accountId restriction on minting shouldn't exist
+        self.token.mint("1".into(), TokenType::Ft, Some(amount.into()), ValidAccountId::from(ValidAccountId::try_from(env::predecessor_account_id()).unwrap()), Some(MultiTokenMetadata{
+            spec: "".to_string(),
+            name: "".to_string(),
+            symbol: "".to_string(),
+            icon: None,
+            base_uri: None,
+            reference: None,
+            reference_hash: None
+        }))
+
+    }
+
+    pub fn get_token_id(&self, release_id: U64) -> String{
+        format!("{:x}", u64::from(release_id))
     }
 
     /// TODO temporary to test access patterns
@@ -423,6 +460,48 @@ impl Contract {
          9
     }
 }
+
+
+
+impl multi_token_standard::metadata::MultiTokenMetadataProvider for Contract {
+    fn mt_metadata(&self, token_id: TokenId) -> MultiTokenMetadata {
+        // TODO this conversion might be tricky and need padding so it's consistent
+        let release_id = u64::from_str_radix(&token_id, 16).unwrap();
+        let release = self.release_id_to_release.get(&release_id).unwrap();
+        // TODO will need a scheme for storing this data
+        // TODO symbol needs thought
+        MultiTokenMetadata {
+            name: release.name,
+            base_uri: None,
+            icon: None,
+            reference: None,
+            reference_hash: None,
+            spec: multi_token_standard::metadata::MT_METADATA_SPEC.into(),
+            symbol: "TTTT".to_string()
+        }
+    }
+    // TODO this should be optional
+    fn mt_extra_metadata(&self, token_id: TokenId) -> MultiTokenExtraMetadata {
+        MultiTokenExtraMetadata {
+            title: None,
+            reference_hash: None,
+            reference: None,
+            copies: None,
+            issued_at: None,
+            expires_at: None,
+            starts_at: None,
+            description: None,
+            media: None,
+            extra: None,
+            media_hash: None,
+            updated_at: None
+        }
+    }
+}
+
+multi_token_standard::impl_multi_token_core_with_minter!(Contract, token);
+multi_token_standard::impl_multi_token_storage!(Contract, token);
+
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
@@ -444,8 +523,8 @@ mod tests {
             .current_account_id(current_id)
             .signer_account_id(signer_id)
             .signer_account_pk(signer_pk)
-            .attached_deposit(13400000000000000000000)
-            .account_balance(0)
+            .attached_deposit(134000000000000000000000)
+            .account_balance(134000000000000000000000)
             .account_locked_balance(0)
             .predecessor_account_id(predecessor_account_id);
         builder
@@ -505,10 +584,17 @@ mod tests {
             max: 20000,
             pre_allocation: 100.into()
         });
-        let release = contract.get_release(1,0).unwrap();
+        let release = contract.get_release(1).unwrap();
         println!("{:?}", release);
        let releases = contract.get_releases(1, None);
         println!("{:?}", releases);
+        let token_id = contract.get_token_id(release.release_id.into());
+        println!("{}", token_id);
+        //contract.balance_of_batch(env::predecessor_account_id(),vec!["1".to_string()]);
+
+        // TODO
+        let t = format!("{:x}", 1);
+        println!("{}", u128::from(contract.balance_of(env::predecessor_account_id(), t)));
 
 /*        let mut contract = Contract {
             owner: accounts(1),
