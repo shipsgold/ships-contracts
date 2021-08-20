@@ -11,9 +11,9 @@ edition = "2018"
 #near-sdk = { git = "https://github.com/near/near-sdk-rs.git" }
 
 [dev-dependencies]
-near-sdk = "3.1.0"
+near-sdk = "4.0.0-pre.2"
 ships_project= { path = "./ships_project" }
-near-sdk-sim = "3.2.0"
+near-sdk-sim = "4.0.0-pre.2"
 near-crypto = "0.1.0"
 bs58 = "0.4"
 #near-sdk-sim = { git = "https://github.com/near/near-sdk-rs.git" }

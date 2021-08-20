@@ -1,9 +1,9 @@
 use crate::*;
+use near_sdk::{require};
 impl Contract {
   pub(crate) fn assert_owner(&self) {
-    assert_eq!(
-      env::predecessor_account_id(),
-      self.owner.to_string(),
+    require!(
+      env::predecessor_account_id().to_string() == self.owner.to_string(),
       "Can only be called by the owner"
     );
   }

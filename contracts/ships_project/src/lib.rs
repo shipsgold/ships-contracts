@@ -1,11 +1,11 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::{ValidAccountId, U128, Base58PublicKey, U64};
+use near_sdk::json_types::{U128, U64};
 use near_sdk::serde::{Serialize, Deserialize};
-use near_sdk::{PromiseOrValue, BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, setup_alloc, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
+use near_sdk::{PromiseOrValue, BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
 use near_sdk::log;
 use std::cmp::Ordering;
-use multi_token_standard::metadata::{MultiTokenMetadataProvider};
-use multi_token_standard::{impl_multi_token_core_with_minter, impl_multi_token_storage};
+use multi_token_standard::metadata::{MultiTokenMetadataProvider, MultiTokenMetadata};
+use multi_token_standard::{impl_multi_token_core, impl_multi_token_storage};
 
 
 use near_sdk::collections::{LookupMap, LookupSet, TreeMap, Vector};
@@ -23,7 +23,6 @@ use multi_token_standard::MultiToken;
 use std::convert::TryFrom;
 
 type CodeId = String;
-setup_alloc!();
 
 type ProjectId = u64;
 type ReleaseId = u64;
@@ -133,7 +132,7 @@ pub struct Release {
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
-    owner: ValidAccountId,
+    owner: AccountId,
     val: i8,
     token: MultiToken,
     guests: LookupSet<PublicKey>,
@@ -155,7 +154,7 @@ pub struct Contract {
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new(owner_id: ValidAccountId) -> Self {
+    pub fn new(owner_id: AccountId) -> Self {
         assert!(
             !env::state_exists(),
             "Contract has already been initialized"
@@ -229,9 +228,10 @@ impl Contract {
     fn min_guest_storage_cost(&mut self) {
         let initial_storage_usage = env::storage_usage();
         let tmp_guest_id = vec![b'a'; 64];
-        self.guests.insert(&tmp_guest_id);
+        let public_key  = PublicKey::try_from(tmp_guest_id).unwrap();
+        self.guests.insert(&public_key);
         let storage_usage = env::storage_usage();
-        self.guests.remove(&tmp_guest_id);
+        self.guests.remove(&public_key);
         if self.user_storage_usage == 0 {
             self.measure_user_storage_usage();
         }
@@ -268,13 +268,13 @@ impl Contract {
         let project = Project {
             id: self.project_id_idx,
             name: tmp_owner_id.to_string(),
-            owner: tmp_owner_id.clone(),
+            owner: AccountId::new_unchecked(tmp_owner_id.clone()),
             uri: tmp_uri.clone(),
             details: project_details,
         };
-        self.owner_to_projects.insert(&project.owner, &tmp_projects);
+        self.owner_to_projects.insert(&project.owner.to_string(), &tmp_projects);
         let initial_storage_usage = env::storage_usage();
-        self.owner_to_projects.get(&project.owner).unwrap().push(&project.id);
+        self.owner_to_projects.get(&project.owner.to_string()).unwrap().push(&project.id);
         self.project_id_to_project.insert(&project.id, &project);
         let project_hash = self.calculate_project_hash(&project.details);
         self.project_hash_to_project_id.insert(&project_hash, &project.id);
@@ -285,7 +285,7 @@ impl Contract {
 
         let mut releases = self.project_to_releases.get(&project.id).unwrap();
         let release = Release {
-            releaser: tmp_owner_id.clone(),
+            releaser: AccountId::new_unchecked(tmp_owner_id.clone()),
             release_id: self.inc_release_idx(),
             pre_allocation: 9u128,
             min: 10000,
@@ -300,24 +300,27 @@ impl Contract {
         self.release_storage_usage = (env::storage_usage() - project_storage_usage);
 
         self.project_to_releases.remove(&project.id);
-        self.owner_to_projects.remove(&project.owner);
+        self.owner_to_projects.remove(&project.owner.to_string());
         self.project_id_to_project.remove(&project.id);
         self.project_hash_to_project_id.remove(&project_hash);
     }
 
     #[payable]
-    pub fn register_user(&mut self) {
+    pub fn register_user(&mut self
+    ) {
         let storage_cost = u128::from(self.user_storage_usage) * env::storage_byte_cost();
         let refund = env::attached_deposit().checked_sub(storage_cost)
-            .unwrap_or_else(|| panic!("Project requires at least {} deposit", storage_cost));
+            .unwrap_or_else(|| env::panic_str(format!("Project requires at least {} deposit", storage_cost).as_str()));
         let owner_id = env::predecessor_account_id();
         let tmp_projects = Vector::new(
             StorageKey::ProjectIdToProject {
                 project_id:
                 self.inc_prefix_owner_to_projects().to_be_bytes().to_vec()
             });
-        ;
-        self.owner_to_projects.insert(&owner_id, &tmp_projects);
+        self.owner_to_projects.insert(&owner_id.to_string(), &tmp_projects);
+        if refund > 1 {
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
     }
 
     #[payable]
@@ -325,7 +328,7 @@ impl Contract {
         let owner_id = env::predecessor_account_id();
         let project_storage_cost = env::storage_byte_cost() * u128::from(self.project_storage_usage);
         let refund = env::attached_deposit().checked_sub(project_storage_cost)
-            .unwrap_or_else(|| panic!("Project requires at least {} deposit", project_storage_cost));
+            .unwrap_or_else(|| env::panic_str(format!("Project requires at least {} deposit", project_storage_cost).as_str()));
         let releases = Vector::new(
             StorageKey::ProjectReleases {
                 project_id:
@@ -335,7 +338,7 @@ impl Contract {
         let project_hash = self.calculate_project_hash(&details);
         let project_id = self.inc_project_idx();
         if let Some(_id) = self.project_hash_to_project_id.insert(&project_hash, &project_id) {
-            panic!("This project already exists");
+            env::panic_str("This project already exists");
         }
         let project = Project {
             owner: owner_id,
@@ -344,9 +347,9 @@ impl Contract {
             id: project_id,
             details,
         };
-        let mut projects = self.owner_to_projects.get(&project.owner).unwrap();
+        let mut projects = self.owner_to_projects.get(&project.owner.to_string()).unwrap();
         projects.push(&project_id);
-        self.owner_to_projects.insert(&project.owner, &projects);
+        self.owner_to_projects.insert(&project.owner.to_string(), &projects);
         self.project_id_to_project.insert(&project.id, &project);
         self.project_to_releases.insert(&project.id, &releases);
 
@@ -361,7 +364,7 @@ impl Contract {
     }
 
     pub fn get_projects(&self, owner_id: AccountId, options: Option<PaginationOptions>) -> Vec<ProjectId> {
-        let projects = self.owner_to_projects.get(&owner_id).unwrap();
+        let projects = self.owner_to_projects.get(&owner_id.to_string()).unwrap();
         let opt = options.unwrap_or_default();
         let mut range = (opt.from..std::cmp::min(opt.from + opt.limit, projects.len()));
 
@@ -377,13 +380,13 @@ impl Contract {
 
     #[payable]
     pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) {
-        let project = self.project_id_to_project.get(&project_id).unwrap_or_else(|| panic!("Project id: {} does not exist", project_id));
+        let project = self.project_id_to_project.get(&project_id).unwrap_or_else(|| env::panic_str(format!("Project id: {} does not exist", project_id).as_str()));
         assert_eq!(project.owner, env::predecessor_account_id());
 
         // calculate refund
         let release_storage_cost = env::storage_byte_cost() * u128::from(self.release_storage_usage);
         let refund = env::attached_deposit().checked_sub(release_storage_cost)
-            .unwrap_or_else(|| panic!("Project requires at least {} deposit", release_storage_cost));
+            .unwrap_or_else(|| env::panic_str(format!("Project requires at least {} deposit", release_storage_cost).as_str()));
 
         // only callable by owner of the project
         let mut releases = self.project_to_releases.get(&project_id).unwrap();
@@ -392,13 +395,13 @@ impl Contract {
             let release_id = releases.get(releases.len() - 1).unwrap();
             let release = self.release_id_to_release.get(&release_id).unwrap();
             if release.status == ReleaseStatus::CLOSED {
-                panic!("Another release is active")
+                env::panic_str("Another release is active")
             }
             if release.version > details.version {
-                panic!("Version is less than latest version {} {} {}",
+                env::panic_str(format!("Version is less than latest version {} {} {}",
                        release.version.major,
                        release.version.minor,
-                       release.version.patch);
+                       release.version.patch).as_str());
             }
         }
         let new_release = &Release {
@@ -450,7 +453,7 @@ impl Contract {
                 assert_eq!(token_type, TokenType::Ft, "Type must be of FT time tokenId already exists")
             }
             Some(TokenType::Nft) => {
-                panic!("Attempting to mint already minted NFT");
+                env::panic_str("Attempting to mint already minted NFT");
             }
             None => {
                 self.token.token_type_index.insert(token_id, &token_type);
@@ -461,7 +464,7 @@ impl Contract {
         match token_type {
             TokenType::Ft => {
                 if amount.is_none() {
-                    env::panic(b"Amount must be specified for Ft type tokens");
+                    env::panic_str("Amount must be specified for Ft type tokens");
                 }
                 // advance the prefix index before insertion
                 let amt = u128::from(amount.unwrap());
@@ -581,7 +584,7 @@ impl multi_token_standard::metadata::MultiTokenMetadataProvider for Contract {
     }
 }
 
-multi_token_standard::impl_multi_token_core_with_minter!(Contract, token);
+multi_token_standard::impl_multi_token_core!(Contract, token);
 multi_token_standard::impl_multi_token_storage!(Contract, token);
 
 
@@ -596,9 +599,9 @@ mod tests {
     use near_sdk::{testing_env, VMContext, PublicKey};
     use std::convert::{TryFrom, TryInto};
 
-    fn get_context(current_id: ValidAccountId,
-                   predecessor_account_id: ValidAccountId,
-                   signer_id: ValidAccountId,
+    fn get_context(current_id: AccountId,
+                   predecessor_account_id: AccountId,
+                   signer_id: AccountId,
                    signer_pk: PublicKey) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
         builder
@@ -612,16 +615,16 @@ mod tests {
         builder
     }
 
-    fn get_contract_id() -> ValidAccountId {
+    fn get_contract_id() -> AccountId {
         accounts(1)
     }
 
-    fn get_sponsor() -> ValidAccountId {
+    fn get_sponsor() -> AccountId {
         accounts(0)
     }
 
     fn get_sponsor_pk() -> PublicKey {
-        vec![1, 2, 3]
+        PublicKey::try_from(vec![1, 2, 3]).unwrap()
     }
 
     #[test]
@@ -644,7 +647,7 @@ mod tests {
                                       get_sponsor_pk());
 
         let signer = InMemorySigner::from_seed("testuser", KeyType::ED25519, "testseed");
-        let base_key = Base58PublicKey::try_from(signer.public_key().try_to_vec().unwrap()).unwrap();
+        let base_key = PublicKey::try_from(signer.public_key().try_to_vec().unwrap()).unwrap();
         println!("{}", String::try_from(&base_key).unwrap());
         testing_env!(context.build());
         let mut contract = Contract::new(accounts(1));
@@ -655,7 +658,7 @@ mod tests {
             repo: "ships-contract".to_string(),
         });
         let project = contract.get_project(1);
-        let projects = contract.get_projects("bob".to_string(), None);
+        let projects = contract.get_projects(AccountId::new_unchecked("bob".to_string()), None);
         contract.create_new_release(1, ReleaseDetails {
             version: Version {
                 major: 1,
