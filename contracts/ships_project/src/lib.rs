@@ -2,7 +2,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{U128, U64};
 use near_sdk::serde::{Serialize, Deserialize};
 use near_sdk::{PromiseOrValue, BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
-use near_sdk::log;
+use near_sdk::{require, log};
 use std::cmp::Ordering;
 use multi_token_standard::metadata::{MultiTokenMetadataProvider, MultiTokenMetadata};
 use multi_token_standard::{impl_multi_token_core, impl_multi_token_storage};
@@ -16,11 +16,13 @@ mod internal;
 mod math;
 mod account;
 mod page;
+mod price;
 
 use page::{PaginationOptions, PaginationResponse};
 use crate::ReleaseStatus::ACTIVE;
 use multi_token_standard::MultiToken;
 use std::convert::TryFrom;
+use crate::price::PricingCurve;
 
 type CodeId = String;
 
@@ -104,8 +106,8 @@ pub struct ReleaseDetails {
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
 #[cfg_attr(test, derive(Clone, Debug))]
 pub struct ReleaseTerms {
-    pub min: u32,
-    pub max: u32,
+    pub min: u128,
+    pub max: u128,
     pub pre_allocation: U128,
 }
 
@@ -122,11 +124,10 @@ pub struct Release {
     version: Version,
     releaser: AccountId,
     name: String,
-    min: u32,
-    max: u32,
     release_id: ReleaseId,
     pre_allocation: Balance,
     status: ReleaseStatus,
+    curve: PricingCurve,
 }
 
 #[near_bindgen]
@@ -137,7 +138,6 @@ pub struct Contract {
     token: MultiToken,
     guests: LookupSet<PublicKey>,
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
-    project_hash_to_project_id: LookupMap<ProjectHash, ProjectId>,
     project_id_to_project: LookupMap<ProjectId, Project>,
     project_to_releases: LookupMap<ProjectId, Vector<ReleaseId>>,
     release_id_to_release: LookupMap<ReleaseId, Release>,
@@ -169,7 +169,6 @@ impl Contract {
                                    StorageKey::MultiTokenSupply),
             guests: LookupSet::new(StorageKey::Guests),
             owner_to_projects: LookupMap::new(StorageKey::OwnerToProjects),
-            project_hash_to_project_id: LookupMap::new(StorageKey::ProjectHashToProjectId),
             project_id_to_project: LookupMap::new(StorageKey::ProjectIdsToProjects),
             project_to_releases: LookupMap::new(StorageKey::ProjectToReleaseIds),
             release_id_to_release: LookupMap::new(StorageKey::ReleaseIdToReleases),
@@ -228,7 +227,7 @@ impl Contract {
     fn min_guest_storage_cost(&mut self) {
         let initial_storage_usage = env::storage_usage();
         let tmp_guest_id = vec![b'a'; 64];
-        let public_key  = PublicKey::try_from(tmp_guest_id).unwrap();
+        let public_key = PublicKey::try_from(tmp_guest_id).unwrap();
         self.guests.insert(&public_key);
         let storage_usage = env::storage_usage();
         self.guests.remove(&public_key);
@@ -237,11 +236,6 @@ impl Contract {
         }
         self.guest_storage_usage = (storage_usage - initial_storage_usage).checked_add(self.user_storage_usage).unwrap();
     }
-
-    fn calculate_project_hash(&self, project_details: &ProjectDetails) -> Vec<u8> {
-        env::sha256(&project_details.try_to_vec().unwrap())
-    }
-
 
     fn measure_project_storage_usage(&mut self) {
         let tmp_owner_id = unsafe { String::from_utf8_unchecked(vec![b'a'; 64]) };
@@ -276,8 +270,6 @@ impl Contract {
         let initial_storage_usage = env::storage_usage();
         self.owner_to_projects.get(&project.owner.to_string()).unwrap().push(&project.id);
         self.project_id_to_project.insert(&project.id, &project);
-        let project_hash = self.calculate_project_hash(&project.details);
-        self.project_hash_to_project_id.insert(&project_hash, &project.id);
         self.project_to_releases.insert(&project.id, &tmp_releases);
         let project_storage_usage = env::storage_usage();
         // clean up
@@ -288,11 +280,14 @@ impl Contract {
             releaser: AccountId::new_unchecked(tmp_owner_id.clone()),
             release_id: self.inc_release_idx(),
             pre_allocation: 9u128,
-            min: 10000,
-            max: 20000,
             version: Version { major: 0, minor: 1, patch: 1 },
             name: tmp_details.clone(),
             status: ReleaseStatus::ACTIVE,
+            curve: PricingCurve {
+                max: 20000,
+                min: 10000,
+                token_cap: 100000
+            },
         };
         releases.push(&release.release_id);
         self.release_id_to_release.insert(&release.release_id, &release);
@@ -302,7 +297,6 @@ impl Contract {
         self.project_to_releases.remove(&project.id);
         self.owner_to_projects.remove(&project.owner.to_string());
         self.project_id_to_project.remove(&project.id);
-        self.project_hash_to_project_id.remove(&project_hash);
     }
 
     #[payable]
@@ -324,7 +318,7 @@ impl Contract {
     }
 
     #[payable]
-    pub fn create_project(&mut self, name: String, uri: String, details: ProjectDetails) {
+    pub fn create_project(&mut self, name: String, uri: String, details: ProjectDetails) -> U64 {
         let owner_id = env::predecessor_account_id();
         let project_storage_cost = env::storage_byte_cost() * u128::from(self.project_storage_usage);
         let refund = env::attached_deposit().checked_sub(project_storage_cost)
@@ -335,11 +329,7 @@ impl Contract {
                 self.inc_prefix_project_to_release().to_be_bytes().to_vec()
             });
 
-        let project_hash = self.calculate_project_hash(&details);
         let project_id = self.inc_project_idx();
-        if let Some(_id) = self.project_hash_to_project_id.insert(&project_hash, &project_id) {
-            env::panic_str("This project already exists");
-        }
         let project = Project {
             owner: owner_id,
             name,
@@ -357,6 +347,7 @@ impl Contract {
             Promise::new(env::predecessor_account_id()).transfer(refund);
         }
         log!("project created {}", project.name);
+        project_id.into()
     }
 
     pub fn get_project(&self, project_id: ProjectId) -> Option<Project> {
@@ -377,6 +368,47 @@ impl Contract {
             .collect()
     }
 
+    fn internal_get_latest_release(&self, project_id: &ProjectId) -> Release {
+        let releases = self.project_to_releases.get(&project_id)
+            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id).as_str()));
+        require!(releases.len() > 0, "Project has no release");
+        let release_id = releases.get(releases.len() - 1).unwrap();
+        self.get_release(release_id).unwrap()
+    }
+
+    pub fn est_num_of_release_tokens(&self, amount: U128, project_id: U64)->U128{
+       let release = self.internal_get_latest_release(&project_id.into());
+        0.into()
+    }
+
+    pub fn est_price_of_release_tokens(&self, num_tokens: U128, project_id: ProjectId)->U128{
+        let release = self.internal_get_latest_release(&project_id.into());
+        self.internal_release_token_price(num_tokens.into(), &release).into()
+    }
+
+    pub fn buy_release_token(&mut self, project_id: ProjectId, num_tokens:U128) {
+        let releases = self.project_to_releases.get(&project_id)
+            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id).as_str()));
+        require!(releases.len() > 0, "Project has no release");
+        let release_id = releases.get(releases.len() - 1).unwrap();
+        let release = self.get_release(release_id).unwrap();
+        let deposit = self.internal_release_token_price(num_tokens.into(), &release);
+        let refund = env::attached_deposit() - deposit;
+        require!(refund >= 0, "Deposit was not large enough to cover cost")
+        //self.internal_mint_release(&env::predecessor_account_id(),  )
+    }
+
+    fn internal_release_token_price(&self, num_tokens: u128, release: &Release) -> u128 {
+        let token_id = self.internal_get_release_token_id(&release.release_id);
+        let supply = self.token.ft_token_supply_by_id.get(&token_id).unwrap();
+        let price = release.curve.price(num_tokens, supply);
+        price.floor() as u128
+    }
+
+    pub fn release_token_price(&self, num_tokens: U128, project_id: ProjectId) -> U128 {
+        let release = self.internal_get_latest_release(&project_id);
+        self.internal_release_token_price(num_tokens.into(), &release).into()
+    }
 
     #[payable]
     pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) {
@@ -384,6 +416,7 @@ impl Contract {
         assert_eq!(project.owner, env::predecessor_account_id());
 
         // calculate refund
+
         let release_storage_cost = env::storage_byte_cost() * u128::from(self.release_storage_usage);
         let refund = env::attached_deposit().checked_sub(release_storage_cost)
             .unwrap_or_else(|| env::panic_str(format!("Project requires at least {} deposit", release_storage_cost).as_str()));
@@ -399,25 +432,29 @@ impl Contract {
             }
             if release.version > details.version {
                 env::panic_str(format!("Version is less than latest version {} {} {}",
-                       release.version.major,
-                       release.version.minor,
-                       release.version.patch).as_str());
+                                       release.version.major,
+                                       release.version.minor,
+                                       release.version.patch).as_str());
             }
         }
         let new_release = &Release {
             name: details.name,
             version: details.version,
-            max: terms.max,
-            min: terms.min,
             pre_allocation: terms.pre_allocation.into(),
             release_id: self.inc_release_idx(),
             releaser: env::predecessor_account_id(),
             status: ACTIVE,
+            // TODO needs to scale properly to the amount so 100 * 10^18
+            curve: PricingCurve {
+                max: terms.max,
+                min: terms.min,
+                token_cap: 10000
+            },
         };
         self.release_id_to_release.insert(&new_release.release_id, &new_release);
         releases.push(&new_release.release_id);
         self.project_to_releases.insert(&project_id, &releases);
-        self.internal_mint_release_token(&new_release.release_id, 1000);
+        self.internal_mint_release_token(&new_release, 1000);
     }
 
     pub fn get_release(&self, release_id: ReleaseId) -> Option<Release> {
@@ -504,8 +541,9 @@ impl Contract {
         .and_then(|by_id| by_id.insert(&token_id, &metadata.as_ref().unwrap()));
         */
 
-        // Return any extra attached deposit not used for storage
-        self.internal_refund_deposit(env::storage_usage() - initial_storage_usage);
+        // TODO multiple refunds here net of cost of purchase
+        // Return any extra attached deposit not used for storage re instate this later
+        // self.internal_refund_deposit(env::storage_usage() - initial_storage_usage);
     }
 
     fn internal_refund_deposit(&self, storage_used: u64) {
@@ -523,9 +561,12 @@ impl Contract {
     }
 
 
-    fn internal_mint_release_token(&mut self, release_id: &ReleaseId, amount: u128) {
-        let token_id = self.internal_get_release_token_id(release_id);
+    fn internal_mint_release_token(&mut self, release: &Release, amount: u128) {
+        let token_id = self.internal_get_release_token_id(&release.release_id);
+        let price = self.internal_release_token_price(amount, &release);
+        let refund =  env::attached_deposit().checked_sub(price).unwrap();
         self.internal_mint_release(&env::predecessor_account_id(), &token_id, multi_token_standard::TokenType::Ft, Some(amount));
+        Promise::new(env::predecessor_account_id()).transfer(refund);
         // TODO valid accountId restriction on minting shouldn't exist
         /*self.token.mint("1".into(), TokenType::Ft, Some(amount.into()), ValidAccountId::from(ValidAccountId::try_from(env::predecessor_account_id()).unwrap()), Some(MultiTokenMetadata{
             spec: "".to_string(),
@@ -578,7 +619,7 @@ impl multi_token_standard::metadata::MultiTokenMetadataProvider for Contract {
             starts_at: None,
             updated_at: None,
             spec: multi_token_standard::metadata::MT_METADATA_SPEC.into(),
-            symbol: "TTTT".to_string(),
+            symbol: "TUTTI".to_string(),
             extra: None,
         }
     }
