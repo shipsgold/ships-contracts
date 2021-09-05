@@ -17,6 +17,10 @@ mod math;
 mod account;
 mod page;
 mod price;
+mod git;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod test_utils;
 
 use page::{PaginationOptions, PaginationResponse};
 use crate::ReleaseStatus::ACTIVE;
@@ -633,6 +637,7 @@ multi_token_standard::impl_multi_token_storage!(Contract, token);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_utils::*;
     use bs58;
     use near_sdk::test_utils::{accounts, get_logs, VMContextBuilder};
     use near_sdk::MockedBlockchain;
@@ -640,33 +645,6 @@ mod tests {
     use near_sdk::{testing_env, VMContext, PublicKey};
     use std::convert::{TryFrom, TryInto};
 
-    fn get_context(current_id: AccountId,
-                   predecessor_account_id: AccountId,
-                   signer_id: AccountId,
-                   signer_pk: PublicKey) -> VMContextBuilder {
-        let mut builder = VMContextBuilder::new();
-        builder
-            .current_account_id(current_id)
-            .signer_account_id(signer_id)
-            .signer_account_pk(signer_pk)
-            .attached_deposit(134000000000000000000000)
-            .account_balance(134000000000000000000000)
-            .account_locked_balance(0)
-            .predecessor_account_id(predecessor_account_id);
-        builder
-    }
-
-    fn get_contract_id() -> AccountId {
-        accounts(1)
-    }
-
-    fn get_sponsor() -> AccountId {
-        accounts(0)
-    }
-
-    fn get_sponsor_pk() -> PublicKey {
-        PublicKey::try_from(vec![1, 2, 3]).unwrap()
-    }
 
     #[test]
     fn test_construction() {
