@@ -41,6 +41,7 @@ const ACCESS_KEY_ALLOWANCE: u128 = 100_000_000_000_000_000_000_000_000;
 #[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Guests,
+    ExternalIdentityVerifier,
     OwnerToProjects,
     ProjectIdToProject { project_id: Vec<u8> },
     ProjectIdsToProjects,
@@ -140,6 +141,7 @@ pub struct Contract {
     owner: AccountId,
     val: i8,
     token: MultiToken,
+    verifier: AccountId,
     guests: LookupSet<PublicKey>,
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
     project_id_to_project: LookupMap<ProjectId, Project>,
@@ -158,7 +160,7 @@ pub struct Contract {
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new(owner_id: AccountId) -> Self {
+    pub fn new(owner_id: AccountId, verifier_id: AccountId) -> Self {
         assert!(
             !env::state_exists(),
             "Contract has already been initialized"
@@ -167,6 +169,7 @@ impl Contract {
         let mut this = Self {
             owner: owner_id.clone(),
             val: 0,
+            verifier: verifier_id.clone(), //TODO this will be an external verifierId
             token: MultiToken::new(StorageKey::MultiTokenOwner,
                                    owner_id,
                                    Some(StorageKey::MultiTokenMetadata),
@@ -653,7 +656,7 @@ mod tests {
                                       get_sponsor(),
                                       get_sponsor_pk());
         testing_env!(context.build());
-        let contract = Contract::new(get_sponsor().into());
+        let contract = Contract::new(get_sponsor().into(),get_sponsor().into());
         testing_env!(context.is_view(true).build());
         assert_eq!(contract.get_count(), 9);
     }
@@ -669,7 +672,7 @@ mod tests {
         let base_key = PublicKey::try_from(signer.public_key().try_to_vec().unwrap()).unwrap();
         println!("{}", String::try_from(&base_key).unwrap());
         testing_env!(context.build());
-        let mut contract = Contract::new(accounts(1));
+        let mut contract = Contract::new(accounts(1),accounts(1));
         contract.register_user();
         contract.create_project("foobar".to_string(), "https://foobar".to_string(), ProjectDetails {
             org: "shipsgold".to_string(),
