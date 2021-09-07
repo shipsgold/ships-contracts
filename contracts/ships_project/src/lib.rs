@@ -36,6 +36,7 @@ type ReleaseId = u64;
 type ProjectHash = Vec<u8>;
 
 const ACCESS_KEY_ALLOWANCE: u128 = 100_000_000_000_000_000_000_000_000;
+const EXT_USER_PREFIX: &Vec<u8> = &vec![b'u'];
 
 //const ACCESS_KEY_ALLOWANCE: u128 = 100_820_000_000_000_000_000_000;
 #[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
@@ -596,6 +597,24 @@ impl Contract {
         }
     }
 
+    fn internal_burn_release_token(&mut self, release: Release, amount: u128) -> u128{
+        let token_id = self.internal_get_release_token_id(&release.release_id);
+        let mut balances = self.token.ft_owners_by_id.get(&token_id).unwrap();
+        // get current balance
+        let balance = balances.get(&env::predecessor_account_id()).unwrap();
+        //  verify you can burn the tokens with proper amount
+        let remaining = balance.checked_sub(amount).unwrap();
+        //  update balances to reflect remaining tokens
+        balances.insert(&env::predecessor_account_id(), &remaining);
+        //  apply balances update
+       self.token.ft_owners_by_id.insert(&token_id, &balances);
+        // apply supply update
+        let token_supply = self.token.ft_token_supply_by_id.get(&token_id).unwrap();
+        let new_supply = token_supply.checked_sub(amount).unwrap();
+        //adjust supply
+        self.token.ft_token_supply_by_id.insert(&token_id,&new_supply);
+        remaining
+    }
 
     fn internal_mint_release_token(&mut self, release: &Release, amount: u128) {
         let token_id = self.internal_get_release_token_id(&release.release_id);
@@ -618,7 +637,7 @@ impl Contract {
     pub fn get_token_id(&self, release_id: U64) -> String {
         format!("{:x}", u64::from(release_id))
     }
-    
+
     pub fn internal_get_token_id(&self, release_id: &ReleaseId) -> String {
         format!("{:x}", u64::from(release_id))
     }
