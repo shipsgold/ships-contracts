@@ -597,7 +597,7 @@ impl Contract {
         }
     }
 
-    fn internal_burn_release_token(&mut self, release: Release, amount: u128) -> u128{
+    fn internal_burn_release_token(&mut self, release: &ReleaseId, amount: u128) -> u128{
         let token_id = self.internal_get_release_token_id(&release.release_id);
         let mut balances = self.token.ft_owners_by_id.get(&token_id).unwrap();
         // get current balance
