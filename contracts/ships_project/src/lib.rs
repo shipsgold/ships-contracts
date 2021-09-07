@@ -48,6 +48,8 @@ enum StorageKey {
     ProjectHashToProjectId,
     ProjectToReleaseIds,
     ProjectReleases { project_id: Vec<u8> },
+    ProjectIdToUsers,
+    ProjectUsers { project_id: Vec<u8>},
     ReleaseIdToReleases,
     MultiTokenOwner,
     MultiTokenMetadata,
@@ -146,6 +148,7 @@ pub struct Contract {
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
     project_id_to_project: LookupMap<ProjectId, Project>,
     project_to_releases: LookupMap<ProjectId, Vector<ReleaseId>>,
+    project_id_to_ext_users: LookupMap<ProjectId, LookupMap<String, String>>,
     release_id_to_release: LookupMap<ReleaseId, Release>,
     project_storage_usage: u64,
     user_storage_usage: u64,
@@ -155,6 +158,7 @@ pub struct Contract {
     release_id_idx: u64,
     prefix_project_to_release_idx: u64,
     prefix_owner_to_projects_idx: u64,
+    prefix_project_to_ext_user_idx: u64,
 }
 
 #[near_bindgen]
@@ -178,6 +182,7 @@ impl Contract {
             owner_to_projects: LookupMap::new(StorageKey::OwnerToProjects),
             project_id_to_project: LookupMap::new(StorageKey::ProjectIdsToProjects),
             project_to_releases: LookupMap::new(StorageKey::ProjectToReleaseIds),
+            project_id_to_ext_users: LookupMap::new(StorageKey::ProjectIdToUsers),
             release_id_to_release: LookupMap::new(StorageKey::ReleaseIdToReleases),
             project_storage_usage: 0,
             user_storage_usage: 0,
@@ -187,6 +192,7 @@ impl Contract {
             project_id_idx: 0,
             prefix_owner_to_projects_idx: 0,
             prefix_project_to_release_idx: 0,
+            prefix_project_to_ext_user_idx: 0,
         };
         this.measure_project_storage_usage();
         this.measure_user_storage_usage();
@@ -211,6 +217,11 @@ impl Contract {
     fn inc_prefix_project_to_release(&mut self) -> u64 {
         self.prefix_project_to_release_idx += 1;
         self.prefix_project_to_release_idx
+    }
+
+    fn inc_prefix_project_to_ext_users(&mut self) -> u64 {
+        self.prefix_project_to_ext_user_idx += 1;
+        self.prefix_project_to_ext_user_idx
     }
 
     fn measure_user_storage_usage(&mut self) {
@@ -258,6 +269,11 @@ impl Contract {
                 project_id:
                 self.prefix_project_to_release_idx.to_be_bytes().to_vec()
             });
+        let tmp_users:LookupMap<String, String> = LookupMap::new(
+            StorageKey::ProjectUsers {
+            project_id:
+                self.prefix_project_to_ext_user_idx.to_be_bytes().to_vec()
+        });
 
 
         let project_details = ProjectDetails {
@@ -278,6 +294,7 @@ impl Contract {
         self.owner_to_projects.get(&project.owner.to_string()).unwrap().push(&project.id);
         self.project_id_to_project.insert(&project.id, &project);
         self.project_to_releases.insert(&project.id, &tmp_releases);
+        self.project_id_to_ext_users.insert(&project.id, &tmp_users);
         let project_storage_usage = env::storage_usage();
         // clean up
         self.project_storage_usage = project_storage_usage - initial_storage_usage;
@@ -302,6 +319,7 @@ impl Contract {
         self.release_storage_usage = (env::storage_usage() - project_storage_usage);
 
         self.project_to_releases.remove(&project.id);
+        self.project_id_to_ext_users.remove(&project.id);
         self.owner_to_projects.remove(&project.owner.to_string());
         self.project_id_to_project.remove(&project.id);
     }
@@ -336,6 +354,13 @@ impl Contract {
                 self.inc_prefix_project_to_release().to_be_bytes().to_vec()
             });
 
+        let users = LookupMap::new(
+            StorageKey::ProjectUsers {
+                project_id:
+                self.inc_prefix_project_to_ext_users().to_be_bytes().to_vec()
+            }
+        );
+
         let project_id = self.inc_project_idx();
         let project = Project {
             owner: owner_id,
@@ -349,6 +374,7 @@ impl Contract {
         self.owner_to_projects.insert(&project.owner.to_string(), &projects);
         self.project_id_to_project.insert(&project.id, &project);
         self.project_to_releases.insert(&project.id, &releases);
+        self.project_id_to_ext_users.insert(&project.id, &users);
 
         if refund > 0 {
             Promise::new(env::predecessor_account_id()).transfer(refund);
@@ -356,7 +382,10 @@ impl Contract {
         log!("project created {}", project.name);
         project_id.into()
     }
-
+    fn checked_get_project(&self, project_id: &ProjectId) -> Project {
+        self.project_id_to_project.get(project_id).unwrap_or_else(||
+            env::panic_str(format!("project_id: {} doesn't exist", project_id).as_str()))
+    }
     pub fn get_project(&self, project_id: ProjectId) -> Option<Project> {
         self.project_id_to_project.get(&project_id)
     }
@@ -587,6 +616,10 @@ impl Contract {
     }
 
     pub fn get_token_id(&self, release_id: U64) -> String {
+        format!("{:x}", u64::from(release_id))
+    }
+    
+    pub fn internal_get_token_id(&self, release_id: &ReleaseId) -> String {
         format!("{:x}", u64::from(release_id))
     }
 
