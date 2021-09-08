@@ -315,7 +315,7 @@ impl Contract {
         let mut releases = self.project_to_releases.get(&project.id).unwrap();
         let release = Release {
             releaser: AccountId::new_unchecked(tmp_owner_id.clone()),
-            release_id: self.inc_release_idx(),
+            release_id: 0,
             pre_allocation: 9u128,
             version: Version { major: 0, minor: 1, patch: 1 },
             name: tmp_details.clone(),
@@ -449,10 +449,10 @@ impl Contract {
 
     fn internal_release_token_price(&self, num_tokens: u128, release: &Release) -> u128 {
         let token_id = self.internal_get_release_token_id(&release.release_id);
-        let user_token_id = EXT_USER_PREFIX + token_id;
+        let user_token_id = EXT_USER_PREFIX.to_owned() + &token_id;
         let supply = self.token.ft_token_supply_by_id.get(&token_id).unwrap();
         let unclaimed_supply = self.token.ft_token_supply_by_id.get(&user_token_id).unwrap();
-        let total_supply = checked_add(unclaimed_supply).unwrap();
+        let total_supply = supply.checked_add(unclaimed_supply).unwrap();
         let price = release.curve.price(num_tokens, total_supply);
         price.floor() as u128
     }
@@ -505,8 +505,9 @@ impl Contract {
         };
         self.release_id_to_release.insert(&new_release.release_id, &new_release);
         releases.push(&new_release.release_id);
+        let token_id=self.internal_get_release_token_id(&new_release.release_id);
         self.project_to_releases.insert(&project_id, &releases);
-        self.internal_mint_release_token(&new_release, 1000);
+        self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft,Some(new_release.pre_allocation));
     }
 
     pub fn get_release(&self, release_id: ReleaseId) -> Option<Release> {
@@ -528,11 +529,11 @@ impl Contract {
     }
 
     fn internal_get_release_token_id(&self, release_id: &ReleaseId) -> multi_token_standard::TokenId {
-        format!("{:x}", release_id)
+        format!("{:016x}", release_id)
     }
 
 
-    fn internal_mint_release(&mut self, owner_id: &AccountId, token_id: &multi_token_standard::TokenId, token_type: multi_token_standard::TokenType, amount: Option<u128>) {
+    fn internal_mint_release_unguarded(&mut self, owner_id: &AccountId, token_id: &multi_token_standard::TokenId, token_type: multi_token_standard::TokenType, amount: Option<u128>) {
         let initial_storage_usage = env::storage_usage();
 
 
@@ -612,7 +613,7 @@ impl Contract {
         }
     }
 
-    fn internal_burn_release_token(&mut self, token: &TokenId, amount: u128) -> u128{
+    fn internal_burn_release_token(&mut self, token_id: &TokenId, amount: u128) -> u128{
         let mut balances = self.token.ft_owners_by_id.get(&token_id).unwrap();
         // get current balance
         let balance = balances.get(&env::predecessor_account_id()).unwrap();
@@ -632,9 +633,10 @@ impl Contract {
 
     fn internal_mint_release_token(&mut self, release: &Release, amount: u128) {
         let token_id = self.internal_get_release_token_id(&release.release_id);
+        println!("{}",token_id);
         let price = self.internal_release_token_price(amount, &release);
         let refund =  env::attached_deposit().checked_sub(price).unwrap();
-        self.internal_mint_release(&env::predecessor_account_id(), &token_id, multi_token_standard::TokenType::Ft, Some(amount));
+        self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, multi_token_standard::TokenType::Ft, Some(amount));
         Promise::new(env::predecessor_account_id()).transfer(refund);
         // TODO valid accountId restriction on minting shouldn't exist
         /*self.token.mint("1".into(), TokenType::Ft, Some(amount.into()), ValidAccountId::from(ValidAccountId::try_from(env::predecessor_account_id()).unwrap()), Some(MultiTokenMetadata{
@@ -649,12 +651,9 @@ impl Contract {
     }
 
     pub fn get_token_id(&self, release_id: U64) -> String {
-        format!("{:x}", u64::from(release_id))
+        self.internal_get_release_token_id(&release_id.into())
     }
 
-    pub fn internal_get_token_id(&self, release_id: &ReleaseId) -> String {
-        format!("{:x}", u64::from(release_id))
-    }
 
     /// TODO temporary to test access patterns
     #[payable]
@@ -727,6 +726,7 @@ mod tests {
         assert_eq!(contract.get_count(), 9);
     }
 
+
     #[test]
     fn test_basic() {
         let mut context = get_context(get_sponsor(),
@@ -766,10 +766,12 @@ mod tests {
         println!("{:?}", releases);
         let token_id = contract.get_token_id(release.release_id.into());
         println!("{}", token_id);
+        let balance = contract.balance_of(get_sponsor(),token_id);
+        println!("{}", u128::from(balance));
         //contract.balance_of_batch(env::predecessor_account_id(),vec!["1".to_string()]);
 
         // TODO
-        let t = format!("{:x}", 1);
+        let t = format!("{:016x}", 1);
         println!("{}", u128::from(contract.balance_of(env::predecessor_account_id(), t)));
 
         /*        let mut contract = Contract {

@@ -3,44 +3,17 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Serialize, Deserialize};
 use crate::*;
 
-
+const DAY_NANOSECONDS:u64 = 86_400_000_000_000;
 impl Contract {
     /*
-    /// Placeholder for registering identity
-    /// Registers external verifier for the project so it can verify identity of user offchain and report
-    /// back
-    pub fn register_ext_identity_verifier(&mut self, project_id: ProjectId, verifier: AccountId) {
+     Functionality here allows for the transfer of ext tokens to place holder external user system
+     the system requirements are that per project , the username is unique per external system
+     rules. If this is the case it's easy to represent a system like git that has an external
+     verifier. This allows projects to outsource the verification of users to external systems
+     In the case of git,
 
-    deal is to
+    */
 
-     mint tokens in the real world
-     transfer_tokens_to_ext_user(release_id, 1000, alice);
-     // transfer tokens burns tokens and recreates the amount with
-     u + release_id , 1000 using internal mint
-
-    }*/
-    /// Here user id can be anything could be public key in case of a temp user or account name
-    /// Function is used to create an entry for the token for the username specified, it is used
-    /// to allow a user to transfer funds immediately to the claimable space, if the user
-    /// does have an account already this function is a gate way that will clear the storage
-    /// space and transfer the tokens once the account is claimed to an existing account
-    pub fn register_ext_user(&mut self, project_id: ProjectId, user: String, user_id:String){
-        let project = self.checked_get_project(&project_id);
-        require!(project.owner == env::predecessor_account_id(), "Owner required to register user");
-        let mut users = self.project_id_to_ext_users.get(&project.id).unwrap();
-        // if user doesn't exist add the temporary user entry otherwise just update
-        // with link
-        if None == users.insert(&user, &user_id) {
-            self.project_id_to_ext_users.insert(&project_id, &users);
-        };
-        // TODO figure out how to add a temp user to registered user list
-    }
-
-    pub fn get_registered_user(&self, project_id: ProjectId, user: String) -> Option<String>{
-        self.project_id_to_ext_users.get(&project_id)
-            .unwrap()
-            .get(&user)
-    }
 
     /// Function is used to send funds to the specified user it sends tokens to the temporary user
     /// assuming that the temporary user will link the account this allows the developer to simply
@@ -52,12 +25,12 @@ impl Contract {
     /// and users create either temporary accounts taht are then used in smart contract lookup instead of
     /// transfer so ths transfer functionality goes directly to the registered or linked account.
     pub fn transfer_ext_user(&mut self, release_id: ReleaseId, user: String, amount: U128){
-        let token_id = self.internal_get_token_id(&release_id);
-        let user_token_id = EXT_USER_PREFIX + token_id;
+        let token_id = self.internal_get_release_token_id(&release_id);
+        let user_token_id = EXT_USER_PREFIX.to_owned() + &token_id;
         // First we burn which will panic if there's not enough funds for it
         self.internal_burn_release_token(&token_id, amount.into());
         // Then we transfer to the user version
-        self.internal_mint_release(&user.into(), &user_token_id, multi_token_standard::TokenType::Ft, Some(amount.into()));
+        self.internal_mint_release_unguarded(&AccountId::new_unchecked(user), &user_token_id, multi_token_standard::TokenType::Ft, Some(amount.into()));
     }
 
     pub fn verify_ext_user(&mut self, project_id: ProjectId, user:String, user_id:AccountId){
@@ -77,60 +50,20 @@ impl Contract {
 
     // NOTE this mus make sure that for supply we count both sets of supply
     pub fn claim_ext_user_tokens(&mut self, project_id: ProjectId, token_id: TokenId, user: String){
-       let user_token_id = EXT_USER_PREFIX + token_id;
+       let user_token_id = EXT_USER_PREFIX.to_owned() + &token_id;
        let verifications = self.project_id_to_ext_users
            .get(&project_id).unwrap();
         let status = verifications.get(&user).unwrap();
         require!(status.user_id == env::predecessor_account_id(),
-            format("{} Not verified as accountid", user_id));
+            format!("{} Does not match accountid {}", env::predecessor_account_id(), status.user_id));
+        let time_diff = env::block_timestamp().checked_sub(status.block_timestamp).unwrap();
+        require!(time_diff < DAY_NANOSECONDS);
         // get current amount of value from the token
-        let amount = self.token.internal_unwrap_balance_of(user.into(),user_token_id);
+        let amount = self.token.internal_unwrap_balance_of(&user_token_id,&AccountId::new_unchecked(user.into()));
         // burn that  value and mint for free the equivalent tokens
-        self.internal_burn_release_token(user_token_id, amount);
+        self.internal_burn_release_token(&user_token_id, amount);
         // mints the equivalent amount of tokens from ext users token to the main token id
-        self.internal_mint_release(&env::predecessor_account_id(), &token_id, TokenType::Ft, Some(amount));
-    }
-
-
-    /// The linked account functionality can only be called by the project verifier or the user that
-    /// already has a linked identity. stored. The logic here is that both entities can relay
-    /// the linkage of the external user identity and the project contract identity (aka near
-    /// account or temporary pub/priv key pair) owner can also remap users for their project
-    ///
-    pub fn transfer_link_ext_user(&mut self, project_id:ProjectId, user:String, user_id: String) {
-        let mut users = self.project_id_to_ext_users.get(&project_id).unwrap()
-        let current_user_id= users.get(&user).unwrap_or("".into());
-        // verify that the verifier, project owner or user themselves is remapping the link
-        require!(env::predecessor_account_id() == self.verifier ||
-            env::predecessor_account_id() == self.checked_get_project(&project_id).owner ||
-            env::predecessor_account_id() == current_user_id);
-        users.insert(&user,&user_id);
-        // this replaces the resolution for users if you haven't transfered before you
-        // may not recover tokens
-        self.project_id_to_ext_users.insert(&project_id, &users);
-    }
-
-    pub fn claim_link_ext_user(&mut self, project_id:ProjectId, user:String, user_id: String) {
-        let mut users = self.project_id_to_ext_users.get(&project_id).unwrap()
-        let current_user_id= users.get(&user).unwrap_or("".into());
-        // verify that the verifier, project owner or user themselves is remapping the link
-        require!(env::predecessor_account_id() == self.verifier ||
-            env::predecessor_account_id() == self.checked_get_project(&project_id).owner ||
-            env::predecessor_account_id() == current_user_id);
-        users.insert(&user,&user_id);
-        // this replaces the resolution for users if you haven't transfered before you
-        // may not recover tokens
-        self.project_id_to_ext_users.insert(&project_id, &users);
-    }
-
-    /// The linked account functionality can only be called by the project verifier or the user that
-    /// already has a linked identity. stored. The logic here is that both entities can relay
-    /// the linkage. The transfer part will transfer any existing linkage value to the new user
-    /// and destroy the account freeing up the space, sending the allocation back to the creator
-    /// of the temp account.
-    pub fn link_ext_user_and_transfer(&mut self, project_id:ProjectId, user:String, user_id: String) {
-
-
+        self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft, Some(amount));
     }
 
 }
@@ -157,11 +90,27 @@ mod tests {
             origin_type: ProjectOrigin::Github,
             org:"shipsgold".to_string()
         });
-        contract.register_ext_user(project_id.into(), "testuser".to_string(), "tmpid".to_string());
-        let user_id = contract.get_registered_user(project_id.into(), "testuser".to_string());
-        assert_eq!(user_id.unwrap(),"tmpid".to_string());
-        let user_id = contract.get_registered_user(project_id.into(), "test".to_string());
-        assert_eq!(user_id, None);
+        contract.create_new_release(project_id.into(), ReleaseDetails {
+            name: "".to_string(),
+            version: Version {
+                major: 0,
+                minor: 0,
+                patch: 1
+            }
+        }, ReleaseTerms {
+            min: 0,
+            max: 0,
+            pre_allocation: U128(1000)
+        });
+        let releases = contract.get_releases(project_id.into(),None);
+        let release = releases.get(0).unwrap();
+        // contract.transfer_ext_user(release.release_id, "ext_user".to_string(), 100.into());
+        //contract.balance_of(get_sponsor(),)
+        //contract.register_ext_user(project_id.into(), "testuser".to_string(), "tmpid".to_string());
+        //let user_id = contract.get_registered_user(project_id.into(), "testuser".to_string());
+     //   assert_eq!(user_id.unwrap(),"tmpid".to_string());
+        //let user_id = contract.get_registered_user(project_id.into(), "test".to_string());
+       // assert_eq!(user_id, None);
 
         /*
         let contract = Contract::new(get_sponsor().into());
