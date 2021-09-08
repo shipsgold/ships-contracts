@@ -36,7 +36,7 @@ type ReleaseId = u64;
 type ProjectHash = Vec<u8>;
 
 const ACCESS_KEY_ALLOWANCE: u128 = 100_000_000_000_000_000_000_000_000;
-const EXT_USER_PREFIX: &Vec<u8> = &vec![b'u'];
+const EXT_USER_PREFIX: &str = "u";
 
 //const ACCESS_KEY_ALLOWANCE: u128 = 100_820_000_000_000_000_000_000;
 #[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
@@ -61,6 +61,13 @@ enum StorageKey {
 #[cfg_attr(test, derive(Clone, Debug))]
 pub enum ProjectOrigin {
     Github
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
+#[cfg_attr(test, derive(Clone, Debug))]
+pub struct ExtProjectUserStatus {
+    block_timestamp: u64,
+    user_id: AccountId, // could be an accountId or not
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
@@ -149,7 +156,7 @@ pub struct Contract {
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
     project_id_to_project: LookupMap<ProjectId, Project>,
     project_to_releases: LookupMap<ProjectId, Vector<ReleaseId>>,
-    project_id_to_ext_users: LookupMap<ProjectId, LookupMap<String, String>>,
+    project_id_to_ext_users: LookupMap<ProjectId, LookupMap<String, ExtProjectUserStatus>>,
     release_id_to_release: LookupMap<ReleaseId, Release>,
     project_storage_usage: u64,
     user_storage_usage: u64,
@@ -275,6 +282,11 @@ impl Contract {
             project_id:
                 self.prefix_project_to_ext_user_idx.to_be_bytes().to_vec()
         });
+        let tmp_ext_users:LookupMap<String, ExtProjectUserStatus> = LookupMap::new(
+            StorageKey::ProjectUsers {
+                project_id:
+                self.prefix_project_to_ext_user_idx.to_be_bytes().to_vec()
+            });
 
 
         let project_details = ProjectDetails {
@@ -295,7 +307,7 @@ impl Contract {
         self.owner_to_projects.get(&project.owner.to_string()).unwrap().push(&project.id);
         self.project_id_to_project.insert(&project.id, &project);
         self.project_to_releases.insert(&project.id, &tmp_releases);
-        self.project_id_to_ext_users.insert(&project.id, &tmp_users);
+        self.project_id_to_ext_users.insert(&project.id, &tmp_ext_users);
         let project_storage_usage = env::storage_usage();
         // clean up
         self.project_storage_usage = project_storage_usage - initial_storage_usage;
@@ -437,8 +449,11 @@ impl Contract {
 
     fn internal_release_token_price(&self, num_tokens: u128, release: &Release) -> u128 {
         let token_id = self.internal_get_release_token_id(&release.release_id);
+        let user_token_id = EXT_USER_PREFIX + token_id;
         let supply = self.token.ft_token_supply_by_id.get(&token_id).unwrap();
-        let price = release.curve.price(num_tokens, supply);
+        let unclaimed_supply = self.token.ft_token_supply_by_id.get(&user_token_id).unwrap();
+        let total_supply = checked_add(unclaimed_supply).unwrap();
+        let price = release.curve.price(num_tokens, total_supply);
         price.floor() as u128
     }
 
@@ -597,8 +612,7 @@ impl Contract {
         }
     }
 
-    fn internal_burn_release_token(&mut self, release: &ReleaseId, amount: u128) -> u128{
-        let token_id = self.internal_get_release_token_id(&release.release_id);
+    fn internal_burn_release_token(&mut self, token: &TokenId, amount: u128) -> u128{
         let mut balances = self.token.ft_owners_by_id.get(&token_id).unwrap();
         // get current balance
         let balance = balances.get(&env::predecessor_account_id()).unwrap();

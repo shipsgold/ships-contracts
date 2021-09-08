@@ -11,6 +11,13 @@ impl Contract {
     /// back
     pub fn register_ext_identity_verifier(&mut self, project_id: ProjectId, verifier: AccountId) {
 
+    deal is to
+
+     mint tokens in the real world
+     transfer_tokens_to_ext_user(release_id, 1000, alice);
+     // transfer tokens burns tokens and recreates the amount with
+     u + release_id , 1000 using internal mint
+
     }*/
     /// Here user id can be anything could be public key in case of a temp user or account name
     /// Function is used to create an entry for the token for the username specified, it is used
@@ -44,14 +51,46 @@ impl Contract {
     /// foul play as the verifier could "fraud". Ideally verification only happens for small amounts,
     /// and users create either temporary accounts taht are then used in smart contract lookup instead of
     /// transfer so ths transfer functionality goes directly to the registered or linked account.
-    pub fn transfer_ext_user(&mut self, project_id: ProjectId, release_id: ReleaseId, user: String, amount: U128){
-        let users = self.project_id_to_ext_users
-            .get(&project_id)
-            .unwrap();
-        let user_id = users.get(&user).unwrap_or_else(||env::panic_str(format!("user not registered {}", &user).as_str()));
+    pub fn transfer_ext_user(&mut self, release_id: ReleaseId, user: String, amount: U128){
         let token_id = self.internal_get_token_id(&release_id);
-        self.token.internal_transfer(&env::predecessor_account_id(),&user_id.into(), &token_id, amount.into(), None)
+        let user_token_id = EXT_USER_PREFIX + token_id;
+        // First we burn which will panic if there's not enough funds for it
+        self.internal_burn_release_token(&token_id, amount.into());
+        // Then we transfer to the user version
+        self.internal_mint_release(&user.into(), &user_token_id, multi_token_standard::TokenType::Ft, Some(amount.into()));
     }
+
+    pub fn verify_ext_user(&mut self, project_id: ProjectId, user:String, user_id:AccountId){
+        // NOTE here that the project owner can verify, this is assumed to be temporary
+        // pending claims, so the idea is that you'll claim it before it builds up to
+        // anything substantial
+        require!(env::predecessor_account_id() == self.verifier ||
+            env::predecessor_account_id() == self.checked_get_project(&project_id).owner, "not project owner or verifier");
+        let mut verification_status = self.project_id_to_ext_users.get(&project_id)
+            .unwrap();
+        verification_status.insert(&user, &ExtProjectUserStatus {
+            block_timestamp: env::block_timestamp(),
+            user_id
+        });
+        self.project_id_to_ext_users.insert(&project_id, &verification_status);
+    }
+
+    // NOTE this mus make sure that for supply we count both sets of supply
+    pub fn claim_ext_user_tokens(&mut self, project_id: ProjectId, token_id: TokenId, user: String){
+       let user_token_id = EXT_USER_PREFIX + token_id;
+       let verifications = self.project_id_to_ext_users
+           .get(&project_id).unwrap();
+        let status = verifications.get(&user).unwrap();
+        require!(status.user_id == env::predecessor_account_id(),
+            format("{} Not verified as accountid", user_id));
+        // get current amount of value from the token
+        let amount = self.token.internal_unwrap_balance_of(user.into(),user_token_id);
+        // burn that  value and mint for free the equivalent tokens
+        self.internal_burn_release_token(user_token_id, amount);
+        // mints the equivalent amount of tokens from ext users token to the main token id
+        self.internal_mint_release(&env::predecessor_account_id(), &token_id, TokenType::Ft, Some(amount));
+    }
+
 
     /// The linked account functionality can only be called by the project verifier or the user that
     /// already has a linked identity. stored. The logic here is that both entities can relay
