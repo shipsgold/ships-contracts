@@ -22,11 +22,11 @@
     }
 
     pub fn get_contract_id() -> AccountId {
-        accounts(1)
+        accounts(0)
     }
 
     pub fn get_sponsor() -> AccountId {
-        accounts(0)
+        accounts(1)
     }
 
     pub fn get_sponsor_pk() -> PublicKey {
