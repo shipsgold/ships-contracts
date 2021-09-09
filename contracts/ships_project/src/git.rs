@@ -28,7 +28,7 @@ impl Contract {
         let token_id = self.internal_get_release_token_id(&release_id);
         let user_token_id = EXT_USER_PREFIX.to_owned() + &token_id;
         // First we burn which will panic if there's not enough funds for it
-        self.internal_burn_release_token(&token_id, amount.into());
+        self.internal_burn_release_token(&env::predecessor_account_id(), &token_id, amount.into());
         // Then we transfer to the user version
         self.internal_mint_release_unguarded(&AccountId::new_unchecked(user), &user_token_id, multi_token_standard::TokenType::Ft, Some(amount.into()));
     }
@@ -53,15 +53,15 @@ impl Contract {
        let user_token_id = EXT_USER_PREFIX.to_owned() + &token_id;
        let verifications = self.project_id_to_ext_users
            .get(&project_id).unwrap();
-        let status = verifications.get(&user).unwrap();
+        let status = verifications.get(&user.clone()).unwrap();
         require!(status.user_id == env::predecessor_account_id(),
             format!("{} Does not match accountid {}", env::predecessor_account_id(), status.user_id));
         let time_diff = env::block_timestamp().checked_sub(status.block_timestamp).unwrap();
         require!(time_diff < DAY_NANOSECONDS);
         // get current amount of value from the token
-        let amount = self.token.internal_unwrap_balance_of(&user_token_id,&AccountId::new_unchecked(user.into()));
+        let amount = self.token.internal_unwrap_balance_of(&user_token_id,&AccountId::new_unchecked(user.clone().into()));
         // burn that  value and mint for free the equivalent tokens
-        self.internal_burn_release_token(&user_token_id, amount);
+        self.internal_burn_release_token(&AccountId::new_unchecked(user), &user_token_id, amount);
         // mints the equivalent amount of tokens from ext users token to the main token id
         self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft, Some(amount));
     }
@@ -75,10 +75,12 @@ mod tests {
 
     use near_sdk::{testing_env, VMContext, PublicKey};
     use test_utils::*;
+    use near_sdk::test_utils::accounts;
+
     #[test]
     pub fn basic_test() {
-        let mut context = get_context(get_sponsor(),
-                                      get_contract_id(),
+        let mut context = get_context(get_contract_id(),
+                                      get_sponsor(),
                                       get_sponsor(),
                                       get_sponsor_pk());
         testing_env!(context.build());
@@ -104,43 +106,22 @@ mod tests {
         });
         let releases = contract.get_releases(project_id.into(),None);
         let release = releases.get(0).unwrap();
-        // contract.transfer_ext_user(release.release_id, "ext_user".to_string(), 100.into());
-        //contract.balance_of(get_sponsor(),)
-        //contract.register_ext_user(project_id.into(), "testuser".to_string(), "tmpid".to_string());
-        //let user_id = contract.get_registered_user(project_id.into(), "testuser".to_string());
-     //   assert_eq!(user_id.unwrap(),"tmpid".to_string());
-        //let user_id = contract.get_registered_user(project_id.into(), "test".to_string());
-       // assert_eq!(user_id, None);
-
-        /*
-        let contract = Contract::new(get_sponsor().into());
-        contract.register_external_identity_verifier(project_id, verifier_id);
-        contract.register_external_user(foodbar, pk:foodbar);
-        contract.unregister_external_user(foodbar, project_id); // project owner can do this
-        internal.get_account_for_external_user(foodbar);
-        transfer_to_external_user(foodbar, release_id, project_id, 100);
-        // developer creates a link by calling
-        register_external_user(foodbar, project_id, place_holder_id); // creates an empty entry if it doesn't exist
-        transfer_external_user(foodbar, 100); // if user doesn't exist it transfers tokens to
-        a unique place holder account id; until user can verify
-        //in external_user_registry
-        // User clicks on link goes to website that makes a request to the api to verify identity
-        // claim with new account
-        // claim with existing account
-        // claim with new account sends foodbar, pk and goes through the github authentication
-        // to send auth token
-        // existing account does the same thing but sends account name, account name is a noop
-        if the transfer was performed user doesn't actually have to claim it it's done
-        automatically this is checked prior to verification
-        // API the verifier links the eternal user with the public key sent
-        link_external_user(foodbar, pk:foodbar); // project_owner or verifier // replaces entry
-        //if new account it transfers
-        with external_entry
-
-
-
-        transfer_external_user(foodbar,100);
-
-         */
+        let token_id = contract.internal_get_release_token_id(&release.release_id);
+        let mut bal: u128= contract.balance_of(get_sponsor(), token_id.clone()).into();
+        assert_eq!(bal, 1000);
+        contract.transfer_ext_user(release.release_id, "ext_user".to_string(), 100.into());
+        bal = contract.balance_of(get_sponsor(),token_id.clone()).into();
+        assert_eq!(bal, 900);
+        println!("balance: {}", bal);
+        contract.verify_ext_user(project_id.into(),"ext_user".into(), accounts(2));
+        let mut context = get_context(get_contract_id(),
+                                      accounts(2),
+                                      accounts(2),
+                                      get_sponsor_pk());
+        testing_env!(context.build());
+        contract.token.internal_register_account(token_id.clone(), &accounts(2));
+        contract.claim_ext_user_tokens(project_id.into(), token_id.clone().into(), "ext_user".into());
+        let bal2:u128 = contract.balance_of(accounts(2), token_id.clone().into()).into();
+        assert_eq!(bal2, 100);
     }
 }

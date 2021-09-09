@@ -613,16 +613,16 @@ impl Contract {
         }
     }
 
-    fn internal_burn_release_token(&mut self, token_id: &TokenId, amount: u128) -> u128{
+    fn internal_burn_release_token(&mut self, account_id: &AccountId, token_id: &TokenId, amount: u128) -> u128{
         let mut balances = self.token.ft_owners_by_id.get(&token_id).unwrap();
         // get current balance
-        let balance = balances.get(&env::predecessor_account_id()).unwrap();
+        let balance = balances.get(account_id).unwrap();
         //  verify you can burn the tokens with proper amount
         let remaining = balance.checked_sub(amount).unwrap();
         //  update balances to reflect remaining tokens
-        balances.insert(&env::predecessor_account_id(), &remaining);
+        balances.insert(account_id, &remaining);
         //  apply balances update
-       self.token.ft_owners_by_id.insert(&token_id, &balances);
+        self.token.ft_owners_by_id.insert(&token_id, &balances);
         // apply supply update
         let token_supply = self.token.ft_token_supply_by_id.get(&token_id).unwrap();
         let new_supply = token_supply.checked_sub(amount).unwrap();
