@@ -1,5 +1,5 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::{U128, U64};
+use near_sdk::json_types::{U128, U64, Base58PublicKey};
 use near_sdk::serde::{Serialize, Deserialize};
 use near_sdk::{PromiseOrValue, BorshStorageKey, ext_contract, Balance, PublicKey, env, near_bindgen, AccountId, PanicOnDefault, Promise, PromiseResult, StorageUsage};
 use near_sdk::{require, log};
@@ -30,8 +30,8 @@ use crate::price::PricingCurve;
 
 type CodeId = String;
 
-type ProjectId = u64;
-type ReleaseId = u64;
+type ProjectId = U64;
+type ReleaseId = U64;
 // sha256 hash of the project Details
 type ProjectHash = Vec<u8>;
 
@@ -42,6 +42,7 @@ const EXT_USER_PREFIX: &str = "u";
 #[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Guests,
+    TempUsers,
     ExternalIdentityVerifier,
     OwnerToProjects,
     ProjectIdToProject { project_id: Vec<u8> },
@@ -78,6 +79,22 @@ pub struct Project {
     uri: String,
     id: ProjectId,
     details: ProjectDetails,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
+#[cfg_attr(test, derive(Clone, Debug))]
+pub struct ProjectView {
+    name: String,
+    owner: AccountId,
+    uri: String,
+    id: U64,
+    details: ProjectDetails,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
+pub struct PaginatedProjectResponse {
+    projects: Vec<Project>,
+    total: U64
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, PartialEq)]
@@ -121,8 +138,8 @@ pub struct ReleaseDetails {
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
 #[cfg_attr(test, derive(Clone, Debug))]
 pub struct ReleaseTerms {
-    pub min: u128,
-    pub max: u128,
+    pub min: U128,
+    pub max: U128,
     pub pre_allocation: U128,
 }
 
@@ -153,6 +170,7 @@ pub struct Contract {
     token: MultiToken,
     verifier: AccountId,
     guests: LookupSet<PublicKey>,
+    temp_users: LookupMap<String, PublicKey>,
     owner_to_projects: LookupMap<String, Vector<ProjectId>>,
     project_id_to_project: LookupMap<ProjectId, Project>,
     project_to_releases: LookupMap<ProjectId, Vector<ReleaseId>>,
@@ -161,6 +179,7 @@ pub struct Contract {
     project_storage_usage: u64,
     user_storage_usage: u64,
     guest_storage_usage: u64,
+    temp_user_storage_usage: u64,
     release_storage_usage: u64,
     project_id_idx: u64,
     release_id_idx: u64,
@@ -187,6 +206,7 @@ impl Contract {
                                    Some(StorageKey::MultiTokenMetadata),
                                    StorageKey::MultiTokenSupply),
             guests: LookupSet::new(StorageKey::Guests),
+            temp_users: LookupMap::new( StorageKey::TempUsers),
             owner_to_projects: LookupMap::new(StorageKey::OwnerToProjects),
             project_id_to_project: LookupMap::new(StorageKey::ProjectIdsToProjects),
             project_to_releases: LookupMap::new(StorageKey::ProjectToReleaseIds),
@@ -195,6 +215,7 @@ impl Contract {
             project_storage_usage: 0,
             user_storage_usage: 0,
             guest_storage_usage: 0,
+            temp_user_storage_usage: 0,
             release_storage_usage: 0,
             release_id_idx: 0,
             project_id_idx: 0,
@@ -204,6 +225,7 @@ impl Contract {
         };
         this.measure_project_storage_usage();
         this.measure_user_storage_usage();
+        this.measure_temp_user_storage_usage();
         this
     }
 
@@ -232,6 +254,20 @@ impl Contract {
         self.prefix_project_to_ext_user_idx
     }
 
+    fn measure_temp_user_storage_usage(&mut self) {
+        let initial_storage_usage = env::storage_usage();
+        let tmp_user_id = unsafe { String::from_utf8_unchecked(vec![b'a'; 64]) };
+        let tmp_pub_key = vec![0; 33];
+
+        self.temp_users.insert(&tmp_user_id,&PublicKey::try_from(tmp_pub_key).unwrap());
+        let storage_usage = env::storage_usage();
+
+        // cleanup
+        self.owner_to_projects.remove(&tmp_user_id);
+
+        self.temp_user_storage_usage = (storage_usage - initial_storage_usage);
+    }
+
     fn measure_user_storage_usage(&mut self) {
         let initial_storage_usage = env::storage_usage();
         let tmp_owner_id = unsafe { String::from_utf8_unchecked(vec![b'a'; 64]) };
@@ -248,6 +284,12 @@ impl Contract {
         self.owner_to_projects.remove(&tmp_owner_id);
 
         self.user_storage_usage = (storage_usage - initial_storage_usage);
+    }
+
+    fn min_temp_user_storage_cost(&mut self) {
+        if self.temp_user_storage_usage == 0 {
+            self.measure_temp_user_storage_usage();
+        }
     }
 
     fn min_guest_storage_cost(&mut self) {
@@ -296,7 +338,7 @@ impl Contract {
         };
 
         let project = Project {
-            id: self.project_id_idx,
+            id: self.project_id_idx.into(),
             name: tmp_owner_id.to_string(),
             owner: AccountId::new_unchecked(tmp_owner_id.clone()),
             uri: tmp_uri.clone(),
@@ -315,7 +357,7 @@ impl Contract {
         let mut releases = self.project_to_releases.get(&project.id).unwrap();
         let release = Release {
             releaser: AccountId::new_unchecked(tmp_owner_id.clone()),
-            release_id: 0,
+            release_id: 0.into(),
             pre_allocation: 9u128,
             version: Version { major: 0, minor: 1, patch: 1 },
             name: tmp_details.clone(),
@@ -337,8 +379,12 @@ impl Contract {
         self.project_id_to_project.remove(&project.id);
     }
 
+   pub fn is_creator_registered(&self, account_id: AccountId) -> bool{
+      self.owner_to_projects.get(&account_id.to_string()).is_some()
+   }
+
     #[payable]
-    pub fn register_user(&mut self
+    pub fn register_creator(&mut self
     ) {
         let storage_cost = u128::from(self.user_storage_usage) * env::storage_byte_cost();
         let refund = env::attached_deposit().checked_sub(storage_cost)
@@ -379,11 +425,11 @@ impl Contract {
             owner: owner_id,
             name,
             uri,
-            id: project_id,
+            id: project_id.into(),
             details,
         };
         let mut projects = self.owner_to_projects.get(&project.owner.to_string()).unwrap();
-        projects.push(&project_id);
+        projects.push(&project_id.into());
         self.owner_to_projects.insert(&project.owner.to_string(), &projects);
         self.project_id_to_project.insert(&project.id, &project);
         self.project_to_releases.insert(&project.id, &releases);
@@ -397,13 +443,33 @@ impl Contract {
     }
     fn checked_get_project(&self, project_id: &ProjectId) -> Project {
         self.project_id_to_project.get(project_id).unwrap_or_else(||
-            env::panic_str(format!("project_id: {} doesn't exist", project_id).as_str()))
+            env::panic_str(format!("project_id: {} doesn't exist", project_id.0).as_str()))
     }
     pub fn get_project(&self, project_id: ProjectId) -> Option<Project> {
         self.project_id_to_project.get(&project_id)
     }
 
-    pub fn get_projects(&self, owner_id: AccountId, options: Option<PaginationOptions>) -> Vec<ProjectId> {
+
+    // TODO make more efficient later
+    pub fn get_projects(&self, owner_id: AccountId, options: Option<PaginationOptions>)-> PaginatedProjectResponse{
+        let projects = self.owner_to_projects.get(&owner_id.to_string()).unwrap();
+        let opt = options.unwrap_or_default();
+        let mut range = (opt.from..std::cmp::min(opt.from + opt.limit, projects.len()));
+
+        if opt.reverse {
+            let from = std::cmp::min(opt.from - opt.limit, 0);
+            range = (from..std::cmp::min(opt.from, projects.len()));
+        }
+        let pjs = range
+            .map(|index| self.project_id_to_project.get(&projects.get(index).unwrap()).unwrap())
+            .collect();
+        PaginatedProjectResponse {
+            projects: pjs,
+            total: projects.len().into()
+        }
+    }
+
+    pub fn get_project_ids(&self, owner_id: AccountId, options: Option<PaginationOptions>) -> Vec<ProjectId> {
         let projects = self.owner_to_projects.get(&owner_id.to_string()).unwrap();
         let opt = options.unwrap_or_default();
         let mut range = (opt.from..std::cmp::min(opt.from + opt.limit, projects.len()));
@@ -419,10 +485,10 @@ impl Contract {
 
     fn internal_get_latest_release(&self, project_id: &ProjectId) -> Release {
         let releases = self.project_to_releases.get(&project_id)
-            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id).as_str()));
+            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id.0).as_str()));
         require!(releases.len() > 0, "Project has no release");
         let release_id = releases.get(releases.len() - 1).unwrap();
-        self.get_release(release_id).unwrap()
+        self.release_id_to_release.get(&release_id).unwrap()
     }
 
     pub fn est_num_of_release_tokens(&self, amount: U128, project_id: U64)->U128{
@@ -437,7 +503,7 @@ impl Contract {
 
     pub fn buy_release_token(&mut self, project_id: ProjectId, num_tokens:U128) {
         let releases = self.project_to_releases.get(&project_id)
-            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id).as_str()));
+            .unwrap_or_else(|| env::panic_str(format!("project_id:{} does not exist", project_id.0).as_str()));
         require!(releases.len() > 0, "Project has no release");
         let release_id = releases.get(releases.len() - 1).unwrap();
         let release = self.get_release(release_id).unwrap();
@@ -463,8 +529,8 @@ impl Contract {
     }
 
     #[payable]
-    pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) {
-        let project = self.project_id_to_project.get(&project_id).unwrap_or_else(|| env::panic_str(format!("Project id: {} does not exist", project_id).as_str()));
+    pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) -> String {
+        let project = self.project_id_to_project.get(&project_id.into()).unwrap_or_else(|| env::panic_str(format!("Project id: {} does not exist", project_id.0).as_str()));
         assert_eq!(project.owner, env::predecessor_account_id());
 
         // calculate refund
@@ -474,7 +540,7 @@ impl Contract {
             .unwrap_or_else(|| env::panic_str(format!("Project requires at least {} deposit", release_storage_cost).as_str()));
 
         // only callable by owner of the project
-        let mut releases = self.project_to_releases.get(&project_id).unwrap();
+        let mut releases = self.project_to_releases.get(&project_id.into()).unwrap();
         //verify version is increasing in nature and verify there are no active releases
         if releases.len() > 0 {
             let release_id = releases.get(releases.len() - 1).unwrap();
@@ -493,21 +559,22 @@ impl Contract {
             name: details.name,
             version: details.version,
             pre_allocation: terms.pre_allocation.into(),
-            release_id: self.inc_release_idx(),
+            release_id: self.inc_release_idx().into(),
             releaser: env::predecessor_account_id(),
             status: ACTIVE,
             // TODO needs to scale properly to the amount so 100 * 10^18
             curve: PricingCurve {
-                max: terms.max,
-                min: terms.min,
+                max: terms.max.0,
+                min: terms.min.0,
                 token_cap: 10000
             },
         };
         self.release_id_to_release.insert(&new_release.release_id, &new_release);
         releases.push(&new_release.release_id);
         let token_id=self.internal_get_release_token_id(&new_release.release_id);
-        self.project_to_releases.insert(&project_id, &releases);
+        self.project_to_releases.insert(&project_id.into(), &releases);
         self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft,Some(new_release.pre_allocation));
+        token_id
     }
 
     pub fn get_release(&self, release_id: ReleaseId) -> Option<Release> {
@@ -529,7 +596,7 @@ impl Contract {
     }
 
     fn internal_get_release_token_id(&self, release_id: &ReleaseId) -> multi_token_standard::TokenId {
-        format!("{:016x}", release_id)
+        format!("{:016x}", release_id.0)
     }
 
 
@@ -671,7 +738,7 @@ impl multi_token_standard::metadata::MultiTokenMetadataProvider for Contract {
     fn mt_metadata(&self, token_id: TokenId) -> MultiTokenMetadata {
         // TODO this conversion might be tricky and need padding so it's consistent
         let release_id = u64::from_str_radix(&token_id, 16).unwrap();
-        let release = self.release_id_to_release.get(&release_id).unwrap();
+        let release = self.release_id_to_release.get(&release_id.into()).unwrap();
         // TODO will need a scheme for storing this data
         // TODO symbol needs thought
         MultiTokenMetadata {
@@ -739,15 +806,15 @@ mod tests {
         println!("{}", String::try_from(&base_key).unwrap());
         testing_env!(context.build());
         let mut contract = Contract::new(accounts(1),accounts(1));
-        contract.register_user();
+        contract.register_creator();
         contract.create_project("foobar".to_string(), "https://foobar".to_string(), ProjectDetails {
             org: "shipsgold".to_string(),
             origin_type: ProjectOrigin::Github,
             repo: "ships-contract".to_string(),
         });
-        let project = contract.get_project(1);
-        let projects = contract.get_projects(AccountId::new_unchecked("bob".to_string()), None);
-        contract.create_new_release(1, ReleaseDetails {
+        let project = contract.get_project(1.into());
+        let projects = contract.get_project_ids(AccountId::new_unchecked("bob".to_string()), None);
+        contract.create_new_release(1.into(), ReleaseDetails {
             version: Version {
                 major: 1,
                 minor: 0,
@@ -760,9 +827,9 @@ mod tests {
                                         max: 20000,
                                         pre_allocation: 100.into(),
                                     });
-        let release = contract.get_release(1).unwrap();
+        let release = contract.get_release(1.into()).unwrap();
         println!("{:?}", release);
-        let releases = contract.get_releases(1, None);
+        let releases = contract.get_releases(1.into(), None);
         println!("{:?}", releases);
         let token_id = contract.get_token_id(release.release_id.into());
         println!("{}", token_id);
