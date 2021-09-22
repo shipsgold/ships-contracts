@@ -97,6 +97,12 @@ pub struct PaginatedProjectResponse {
     total: U64
 }
 
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
+pub struct PaginatedReleaseResponse {
+    releases: Vec<Release>,
+    total: U64
+}
+
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(test, derive(Clone, Debug))]
 pub struct Version {
@@ -529,7 +535,7 @@ impl Contract {
     }
 
     #[payable]
-    pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) -> String {
+    pub fn create_new_release(&mut self, project_id: ProjectId, details: ReleaseDetails, terms: ReleaseTerms) -> U64 {
         let project = self.project_id_to_project.get(&project_id.into()).unwrap_or_else(|| env::panic_str(format!("Project id: {} does not exist", project_id.0).as_str()));
         assert_eq!(project.owner, env::predecessor_account_id());
 
@@ -574,14 +580,14 @@ impl Contract {
         let token_id=self.internal_get_release_token_id(&new_release.release_id);
         self.project_to_releases.insert(&project_id.into(), &releases);
         self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft,Some(new_release.pre_allocation));
-        token_id
+        new_release.release_id.into()
     }
 
     pub fn get_release(&self, release_id: ReleaseId) -> Option<Release> {
         self.release_id_to_release.get(&release_id)
     }
 
-    pub fn get_releases(&self, project_id: ProjectId, options: Option<PaginationOptions>) -> Vec<Release> {
+    pub fn get_releases(&self, project_id: ProjectId, options: Option<PaginationOptions>) -> PaginatedReleaseResponse {
         let releases = self.project_to_releases.get(&project_id).unwrap();
         let opt = options.unwrap_or_default();
         let mut range = (opt.from..std::cmp::min(opt.from + opt.limit, releases.len()));
@@ -590,9 +596,12 @@ impl Contract {
             let from = std::cmp::min(opt.from - opt.limit, 0);
             range = (from..std::cmp::min(opt.from, releases.len()));
         }
-        range
-            .map(|index| self.release_id_to_release.get(&releases.get(index).unwrap()).unwrap())
-            .collect()
+        PaginatedReleaseResponse {
+            releases: range
+                .map(|index| self.release_id_to_release.get(&releases.get(index).unwrap()).unwrap())
+                .collect(),
+            total: releases.len().into()
+        }
     }
 
     fn internal_get_release_token_id(&self, release_id: &ReleaseId) -> multi_token_standard::TokenId {
