@@ -1,6 +1,7 @@
 use near_sdk::env;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Serialize, Deserialize};
+use near_sdk::json_types::U128;
 /*
     sigmoid curve pricing function
     In this case we shift the curve by 3 times the midpoint
@@ -32,9 +33,9 @@ pub const PRICING_TIER: &[f64; 6] = &[0.1, 0.1, 0.2, 0.2, 0.2, 0.2];
 #[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
 #[cfg_attr(test, derive(Clone, Debug))]
 pub struct PricingCurve {
-    pub(crate) min: u128,
-    pub(crate) max: u128,
-    pub(crate) token_cap: u128,
+    pub(crate) min: U128,
+    pub(crate) max: U128,
+    pub(crate) token_cap: U128,
 }
 
 // Curve pricing must be adjusted later to fit the decimals application
@@ -47,16 +48,16 @@ impl PricingCurve {
      */
 
     fn internal_balance_cost(&self, tokens: u128) -> f64 {
-        let rng = (self.max - self.min) as f64;
+        let rng = (self.max.0 - self.min.0) as f64;
         let mut break_prices: [f64; PRICING_TIER.len()] =[0.0; PRICING_TIER.len()];
         let mut break_tokens: [f64; PRICING_TIER.len()] =[0.0; PRICING_TIER.len()];
         PRICING_TIER.iter().enumerate().for_each(|(i, pt)| {
             break_prices[i]=pt * rng;
-            break_tokens[i]=pt * (self.token_cap as f64);
+            break_tokens[i]=pt * (self.token_cap.0 as f64);
         });
         let mut new_tokens: f64 = tokens as f64;
         let mut cost  = 0.0;
-        let mut running_price = self.min as f64;
+        let mut running_price = self.min.0 as f64;
         let mut remaining_tokens = 0.0;
         for i in 0..break_tokens.len(){
             remaining_tokens = new_tokens - break_tokens[i];
@@ -69,7 +70,7 @@ impl PricingCurve {
             running_price += break_prices[i];
         }
         if remaining_tokens > 0.0 {
-            cost += remaining_tokens * self.max as f64;
+            cost += remaining_tokens * self.max.0 as f64;
         }
         cost
     }
@@ -89,9 +90,9 @@ mod tests {
     #[test]
     pub fn basic_calculation() {
         let curve = PricingCurve {
-            token_cap: 100,
-            max: 5,
-            min: 1
+            token_cap: 100.into(),
+            max: 5.into(),
+            min: 1.into()
         };
         assert_eq!(curve.price(0, 0 ), 0.0);
         assert_eq!(curve.price(1, 0 ), 1.0);
