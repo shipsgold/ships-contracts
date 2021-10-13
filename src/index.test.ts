@@ -51,10 +51,12 @@ describe("it tests contract connection", () => {
     }
     //console.log(await contract.get_count())
    // console.log(await contract.increment({amount:"1"}))
-    console.log(await contract.add_guest(keyPair.getPublicKey().toString(), "funnyuser"))
+   //TODO temp
+    /*console.log(await contract.add_guest(keyPair.getPublicKey().toString(), "funnyuser"))
     console.log(await guestContract.guest_code_id(keyPair.getPublicKey().toString()))
     console.log(await guestContract.increment()) 
     console.log(await guestContract.get_count())
+    */
 //    const contractAccount = getContract(devAcct, devAccountId) as any;
   //  await contractAccount.new({owner_id:"dev-1622302692883-89460864297760" , count: 10})
   //  const value = await contractAccount.new_owner({args: {owner_id: devAccountId }},)

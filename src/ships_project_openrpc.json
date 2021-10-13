@@ -157,6 +157,24 @@
       ]
     },
     {
+      "name": "get_releases",
+      "description": "get back a paginated list of projects by account_id",
+      "params": [{
+        "$ref": "#/components/contentDescriptors/ProjectId"
+        },
+        { 
+          "$ref": "#/components/contentDescriptors/PaginationOptions"
+        }],
+        "result": {
+          "$ref": "#/components/contentDescriptors/GetReleasesResult"
+        },
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ]
+    },
+    {
       "name": "create_new_release",
       "description": "Create a new release for project id",
       "params": [
@@ -342,10 +360,18 @@
       },
       "CreateNewReleaseResult": {
         "name": "createNewReleaseResult",
-        "description": "result from creating a project",
+        "description": "result from creating a new release the release id",
         "schema": {
-          "$ref": "#/components/schemas/TokenId"
+          "$ref": "#/components/schemas/ReleaseId"
         }
+      },
+      "GetReleasesResult": {
+        "name": "releasesPagination",
+        "description": "Result of fetching releases with pagination",
+        "schema": {
+          "$ref": "#/components/schemas/PaginatedReleases"
+        },
+        "required": true
       },
       "GetProjectsResult": {
         "name": "projectsPagination",
@@ -393,6 +419,20 @@
         },
         "required": ["total","projects"]
       },
+      "PaginatedReleases": {
+        "title": "paginatedReleases",
+        "type": "object",
+        "properties": {
+          "total": {
+            "$ref": "#/components/schemas/U64"
+          },
+          "releases": {
+            "$ref": "#/components/schemas/Releases"
+          }
+        },
+        "additionalProperties": false,
+        "required": ["total","releases"]
+      },
       "PaginationOptions": {
         "title": "paginationOptions",
         "type":"object",
@@ -414,6 +454,10 @@
       },
       "AccountId": {
         "title": "AccountId",
+        "type": "string"
+      },
+      "ReleaseId": {
+        "title": "ReleaseId",
         "type": "string"
       },
       "TokenId": {
@@ -461,6 +505,56 @@
         },
         "required": ["min","max","pre_allocation"]
       },
+      "Releases": {
+        "type": "array",
+        "title": "releases",
+        "items": [{
+          "$ref": "#/components/schemas/Release"
+        }]
+      },
+      "Release": {
+        "type":"object",
+        "properties":{
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "releaser": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "release_id": {
+            "$ref": "#/components/schemas/ReleaseId"
+          },
+          "pre_allocation": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReleaseStatus"
+          },
+          "curve": {
+            "$ref": "#/components/schemas/PricingCurve"
+          }
+        }
+      },
+      "ReleaseStatus": {
+        "title": "ReleaseStatus",
+        "type": "string",
+        "enum":["ACTIVE","CLOSED"]
+      },
+      "PricingCurve" : {
+        "title": "PricingCurve",
+        "type": "object",
+        "properties": {
+          "min": {
+            "$ref": "#/components/schemas/U128"
+          }, 
+          "max": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "token_cap": {
+            "$ref": "#/components/schemas/U128"
+          }
+        }
+      },
       "ProjectId": {
         "title": "id",
         "type":"string"
@@ -478,15 +572,15 @@
         "properties": {
           "minor": {
             "title": "minor",
-            "type": "string"
+            "type": "number"
           },
           "major": {
-            "title": "minor",
-            "type": "string"
+            "title": "major",
+            "type": "number"
           },
           "patch": {
             "title": "patch",
-            "type": "string"
+            "type": "number"
           }
         },
         "required": ["minor", "major", "patch"]

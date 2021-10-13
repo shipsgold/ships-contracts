@@ -5,7 +5,9 @@
   "main": "build/src/index.js",
   "scripts": {
     "migrate:client": "mkdir -p src/generated/client && cp ./generated-client/custom/typescript/src/*.ts src/generated/client/",
+    "build:client": "cd generated-client/custom/typescript && npx --no-install tsc && npm pack && cp *.tgz ../../../",
     "gen:client": "npx --no-install open-rpc-generator generate -c ships-open-rpc-contract-gen-config.json && npm run migrate:client",
+    "build-all:client": "npm run gen:client && npm run build:client",
     "bundle": "npm pack && mv shipsgold-ships-contracts-client-*.tgz shipsgold-ships-contract-client.tgz",
     "bundle:clean": "rm shipsgold-ships-contracts-client*.tgz",
     "build:contracts": "bash contracts/build.sh",
