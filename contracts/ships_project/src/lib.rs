@@ -163,7 +163,7 @@ pub struct Release {
     releaser: AccountId,
     name: String,
     release_id: ReleaseId,
-    pre_allocation: Balance,
+    pre_allocation: U128,
     status: ReleaseStatus,
     curve: PricingCurve,
 }
@@ -364,14 +364,14 @@ impl Contract {
         let release = Release {
             releaser: AccountId::new_unchecked(tmp_owner_id.clone()),
             release_id: 0.into(),
-            pre_allocation: 9u128,
+            pre_allocation: 9u128.into(),
             version: Version { major: 0, minor: 1, patch: 1 },
             name: tmp_details.clone(),
             status: ReleaseStatus::ACTIVE,
             curve: PricingCurve {
-                max: 20000,
-                min: 10000,
-                token_cap: 100000
+                max: 20000u128.into(),
+                min: 10000u128.into(),
+                token_cap: 100000u128.into()
             },
         };
         releases.push(&release.release_id);
@@ -570,16 +570,16 @@ impl Contract {
             status: ACTIVE,
             // TODO needs to scale properly to the amount so 100 * 10^18
             curve: PricingCurve {
-                max: terms.max.0,
-                min: terms.min.0,
-                token_cap: 10000
+                max: terms.max,
+                min: terms.min,
+                token_cap: 10000u128.into()
             },
         };
         self.release_id_to_release.insert(&new_release.release_id, &new_release);
         releases.push(&new_release.release_id);
         let token_id=self.internal_get_release_token_id(&new_release.release_id);
         self.project_to_releases.insert(&project_id.into(), &releases);
-        self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft,Some(new_release.pre_allocation));
+        self.internal_mint_release_unguarded(&env::predecessor_account_id(), &token_id, TokenType::Ft,Some(new_release.pre_allocation.into()));
         new_release.release_id.into()
     }
 
@@ -832,14 +832,14 @@ mod tests {
             name: "EdgyEgret".to_string(),
         },
                                     ReleaseTerms {
-                                        min: 10000,
-                                        max: 20000,
+                                        min: 10000u128.into(),
+                                        max: 20000u128.into(),
                                         pre_allocation: 100.into(),
                                     });
         let release = contract.get_release(1.into()).unwrap();
         println!("{:?}", release);
         let releases = contract.get_releases(1.into(), None);
-        println!("{:?}", releases);
+        println!("{:?}", releases.releases.into());
         let token_id = contract.get_token_id(release.release_id.into());
         println!("{}", token_id);
         let balance = contract.balance_of(get_sponsor(),token_id);
