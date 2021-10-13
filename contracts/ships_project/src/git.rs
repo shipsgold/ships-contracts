@@ -86,7 +86,7 @@ mod tests {
         testing_env!(context.build());
 
         let mut contract = Contract::new(get_sponsor().into(), get_sponsor().into());
-        contract.register_user();
+        contract.register_creator();
         let project_id = contract.create_project("test".to_string(), "test".to_string(), ProjectDetails{
             repo: "test".to_string(),
             origin_type: ProjectOrigin::Github,
