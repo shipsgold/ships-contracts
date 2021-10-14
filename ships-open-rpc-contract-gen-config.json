@@ -1,5 +1,5 @@
 {
-  "openrpcDocument": "./src/counter_openrpc.json",
+  "openrpcDocument": "./src/ships_project_openrpc.json",
   "outDir": "./generated-client",
   "components": [
       {

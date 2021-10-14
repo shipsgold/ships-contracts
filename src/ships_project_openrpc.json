@@ -1,0 +1,649 @@
+{
+  "openrpc": "1.2.4",
+  "info": {
+    "version": "0.0.1",
+    "description": "Ships Project Contract",
+    "title": "ShipsProjectContract"
+  },
+  "methods": [
+    {
+      "name": "increment",
+      "params": [],
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "result": {
+        "name": "count",
+        "schema": {
+          "type": "number"
+        }
+      }
+    },
+    {
+      "name": "is_creator_registered", 
+      "params": [{
+        "$ref": "#/components/contentDescriptors/CreatorId"
+      }],
+      "result" : {
+        "name": "CreatorResult",
+        "schema": {
+          "title": "isCreated",
+          "type": "boolean" 
+        },
+        "required": true
+      },
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ]
+    },
+    {
+      "name": "register_creator", 
+      "params": [ ],
+      "description": "Register user for creating projects",
+      "result" : {
+        "name": "null",
+        "schema": {
+          "type": "null" 
+        }
+      },
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ]
+    },
+    {
+      "name": "add_temp_user",
+      "params": [
+        {
+          "$ref": "#/components/contentDescriptors/UserId"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/pubKey"
+        }
+      ],
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "result": {
+        "name": "TemporaryUserResult",
+        "schema": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "name": "reset_temp_user",
+      "params": [
+        {
+          "$ref": "#/components/contentDescriptors/UserId"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/pubKey"
+        }
+      ],
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "result": {
+        "name": "ResetUser",
+        "schema": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "name": "is_temp_user",
+      "params": [
+        {
+          "$ref": "#/components/contentDescriptors/pubKey"
+        }
+      ],
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ],
+      "result": {
+        "$ref": "#/components/contentDescriptors/TempUserResult"
+      }
+    },
+    {
+      "name": "create_project",
+      "params":[
+        {
+          "$ref": "#/components/contentDescriptors/ProjectName"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/ProjectUri"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/ProjectDetails"
+        }
+      ],
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "result": {
+        "$ref": "#/components/contentDescriptors/CreateProjectResult"
+      }
+    },
+    {
+      "name": "get_projects",
+      "description": "get back a paginated list of projects by account_id",
+      "params": [{
+        "$ref": "#/components/contentDescriptors/ProjectOwnerId"
+        },
+        { 
+          "$ref": "#/components/contentDescriptors/PaginationOptions"
+        }],
+        "result": {
+          "$ref": "#/components/contentDescriptors/GetProjectsResult"
+        },
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ]
+    },
+    {
+      "name": "get_releases",
+      "description": "get back a paginated list of projects by account_id",
+      "params": [{
+        "$ref": "#/components/contentDescriptors/ProjectId"
+        },
+        { 
+          "$ref": "#/components/contentDescriptors/PaginationOptions"
+        }],
+        "result": {
+          "$ref": "#/components/contentDescriptors/GetReleasesResult"
+        },
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ]
+    },
+    {
+      "name": "create_new_release",
+      "description": "Create a new release for project id",
+      "params": [
+        {
+          "$ref": "#/components/contentDescriptors/ProjectId"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/ReleaseDetails"
+        },
+        {
+          "$ref": "#/components/contentDescriptors/ReleaseTerms"
+        }
+      ],
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "result" : {
+          "$ref": "#/components/contentDescriptors/CreateNewReleaseResult"
+      }
+    },
+    {
+      "name": "get_count",
+      "params": [],
+      "tags": [
+        {
+          "$ref": "#/components/tags/view"
+        }
+      ],
+      "result": {
+        "name": "countResult",
+        "schema": {
+          "type": "number"
+        }
+      }
+    },
+    {
+
+      "name": "new",
+      "description": "initialization method",
+      "tags": [
+        {
+          "$ref": "#/components/tags/change"
+        }
+      ],
+      "params": [
+        {
+          "name": "owner_id",
+          "required": true,
+          "schema": {
+            "title": "owner_id",
+            "type": "string"
+          }
+        },
+        {
+          "name": "verifier_id",
+          "required": true,
+          "schema": {
+            "title": "verifier_id",
+            "type": "string"
+          }
+        },
+        {
+          "name": "count",
+          "required": true,
+          "schema": {
+            "title": "count",
+            "type": "number"
+          }
+        }
+      ],
+      "result": {
+        "name": "InitResult",
+        "required": false,
+        "schema": {
+          "type": "null"
+        }
+      }
+    }
+  ],
+  "components": {
+    "tags": {
+      "change": {
+        "name": "change",
+        "description": "change method"
+      },
+      "view": {
+        "name": "view",
+        "description": "view method"
+      }
+    },
+    "contentDescriptors": {
+      "pubKey": {
+        "name": "access_key",
+        "schema": {
+          "title": "PubKey",
+          "type": "string"
+        },
+        "required": true
+      },
+      "TempUserResult": {
+        "name": "tempUserResult",
+        "schema": {
+          "$ref": "#/components/schemas/TempUserResult"
+        }
+      },
+      "CreatorId": {
+        "name":"account_id",
+        "description": "Id for the project creator",
+        "schema":  {
+          "$ref": "#/components/schemas/AccountId"
+        },
+        "required": true
+      },
+      "ProjectOwnerId": {
+        "name": "owner_id",
+        "description": "Project owner id",
+        "schema": {
+          "$ref": "#/components/schemas/AccountId"
+        },
+        "required": true
+      },
+      "UserId": {
+        "name": "user_id",
+        "schema": {
+          "$ref": "#/components/schemas/UserId"
+        },
+        "required": true
+      },
+      "ProjectId": {
+        "name": "project_id",
+        "description": "Id of the project",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectId"
+        },
+        "required": true
+      },
+      "ProjectName": {
+        "name": "name",
+        "description": "Name of the project",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectName"
+        },
+        "required": true
+      },
+      "ProjectUri": {
+        "name": "uri",
+        "description": "URI for the project",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectUri"
+        },
+        "required": true
+      },
+      "ProjectDetails": {
+        "name": "details",
+        "description": "Project details",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectDetails"
+        },
+        "required": true
+      },
+      "CreateProjectResult": {
+        "name": "projectIdResult",
+        "description": "result from creating a project",
+        "schema": {
+          "$ref": "#/components/schemas/ProjectId"
+        }
+      },
+      "ReleaseDetails": {
+        "name": "details",
+        "schema": {
+          "$ref": "#/components/schemas/ReleaseDetails"
+        },
+        "required": true
+      },
+      "ReleaseTerms": {
+        "name": "terms",
+        "schema": {
+          "$ref": "#/components/schemas/ReleaseTerms"
+        },
+        "required": true
+      },
+      "CreateNewReleaseResult": {
+        "name": "createNewReleaseResult",
+        "description": "result from creating a new release the release id",
+        "schema": {
+          "$ref": "#/components/schemas/ReleaseId"
+        }
+      },
+      "GetReleasesResult": {
+        "name": "releasesPagination",
+        "description": "Result of fetching releases with pagination",
+        "schema": {
+          "$ref": "#/components/schemas/PaginatedReleases"
+        },
+        "required": true
+      },
+      "GetProjectsResult": {
+        "name": "projectsPagination",
+        "description": "Result of a project with pagination",
+        "schema": {
+          "$ref": "#/components/schemas/PaginatedProjects"
+        },
+        "required": true
+      },
+      "PaginationOptions": {
+        "name": "paginationOptions",
+        "description": "Pagination Options for making request",
+        "schema": {
+          "$ref": "#/components/schemas/PaginationOptions"
+        },
+        "required": false
+      }
+  },
+  "schemas": {
+      "U128": {
+        "title": "u128",
+        "type": "string"
+      },
+      "U64": {
+        "title": "u64",
+        "type": "string"
+      },
+      "Projects" : {
+        "title": "Projects",
+        "type": "array",
+        "items": [{
+          "$ref": "#/components/schemas/Project"
+        }]
+      },
+      "PaginatedProjects": {
+        "title": "paginatedProjects",
+        "type": "object",
+        "properties": {
+          "total": {
+            "$ref": "#/components/schemas/U64"
+          },
+          "projects": {
+            "$ref": "#/components/schemas/Projects"
+          }
+        },
+        "required": ["total","projects"]
+      },
+      "PaginatedReleases": {
+        "title": "paginatedReleases",
+        "type": "object",
+        "properties": {
+          "total": {
+            "$ref": "#/components/schemas/U64"
+          },
+          "releases": {
+            "$ref": "#/components/schemas/Releases"
+          }
+        },
+        "additionalProperties": false,
+        "required": ["total","releases"]
+      },
+      "PaginationOptions": {
+        "title": "paginationOptions",
+        "type":"object",
+        "properties": {
+          "limit": {
+            "title": "limit",
+            "$ref": "#/components/schemas/U128"
+          },
+          "from": {
+            "title": "from",
+            "$ref": "#/components/schemas/U128"
+          },
+          "reverse": {
+            "title": "reverse",
+            "type": "boolean"
+            }
+          },
+          "required": ["limit", "from", "reverse"]
+      },
+      "AccountId": {
+        "title": "AccountId",
+        "type": "string"
+      },
+      "ReleaseId": {
+        "title": "ReleaseId",
+        "type": "string"
+      },
+      "TokenId": {
+        "title": "TokenId",
+        "type": "string"
+      },
+      "TempUserResult": {
+        "title": "tempUserResult",
+        "type": "boolean"
+      },
+      "Uri": {
+        "title": "uri",
+        "type": "string"
+      },
+      "ReleaseName": {
+        "title": "ReleaseName",
+        "type": "string"
+      },
+      "ReleaseDetails": {
+        "title": "ReleaseDetails",
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/ReleaseName"
+          },
+          "version": {
+            "$ref":"#/components/schemas/Version"
+          }
+        },
+        "required": ["name", "version"]
+      },
+      "ReleaseTerms": {
+        "title": "ReleaseTerms",
+        "type": "object",
+        "properties": {
+          "min": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "max": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "pre_allocation": {
+            "$ref": "#/components/schemas/U128"
+          }
+        },
+        "required": ["min","max","pre_allocation"]
+      },
+      "Releases": {
+        "type": "array",
+        "title": "releases",
+        "items": [{
+          "$ref": "#/components/schemas/Release"
+        }]
+      },
+      "Release": {
+        "type":"object",
+        "properties":{
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "releaser": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "release_id": {
+            "$ref": "#/components/schemas/ReleaseId"
+          },
+          "pre_allocation": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReleaseStatus"
+          },
+          "curve": {
+            "$ref": "#/components/schemas/PricingCurve"
+          }
+        }
+      },
+      "ReleaseStatus": {
+        "title": "ReleaseStatus",
+        "type": "string",
+        "enum":["ACTIVE","CLOSED"]
+      },
+      "PricingCurve" : {
+        "title": "PricingCurve",
+        "type": "object",
+        "properties": {
+          "min": {
+            "$ref": "#/components/schemas/U128"
+          }, 
+          "max": {
+            "$ref": "#/components/schemas/U128"
+          },
+          "token_cap": {
+            "$ref": "#/components/schemas/U128"
+          }
+        }
+      },
+      "ProjectId": {
+        "title": "id",
+        "type":"string"
+      },
+      "ProjectName": {
+        "title": "name",
+        "type": "string"
+      },
+      "ProjectUri": {
+        "title": "uri",
+        "type": "string"
+      },
+      "Version" : {
+        "type": "object",
+        "properties": {
+          "minor": {
+            "title": "minor",
+            "type": "number"
+          },
+          "major": {
+            "title": "major",
+            "type": "number"
+          },
+          "patch": {
+            "title": "patch",
+            "type": "number"
+          }
+        },
+        "required": ["minor", "major", "patch"]
+      },
+      "Project" : {
+        "type":"object",
+        "title": "project",
+        "properties": {
+          "name": {
+          },
+          "owner": {
+            "title": "owner",
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "uri": {
+            "title": "uri",
+            "$ref": "#/components/schemas/Uri"
+          },
+          "id": {
+            "title": "project_id",
+            "$ref": "#/components/schemas/ProjectId"
+          }
+        },
+        "required": ["owner", "uri", "id"]
+      },
+      "ProjectDetails" : {
+        "title": "details",
+        "type": "object",
+          "properties" : {
+            "repo": {
+              "title": "repo",
+              "schema" : {
+                "type": "string"
+              }
+            },
+            "org": {
+              "title": "org",
+              "schema": {
+                "type": "string"
+              }
+            },
+            "origin_type": {
+              "title": "origin_type",
+              "schema": {
+                "type": "string",
+                "enum": ["one", "two", "three"]
+              }
+            }
+          },
+          "required": ["repo", "org", "origin_type"]
+      },
+      
+      "AccessKey": {
+        "title": "access_key",
+        "description": "The account public key",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "UserId": {
+        "title": "user_id",
+        "type": "string"
+      }
+    }
+  }
+}

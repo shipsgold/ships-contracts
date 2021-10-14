@@ -1,0 +1,22 @@
+[package]
+name = "ships_project"
+version = "1.0.0"
+authors = ["Near Inc <hello@nearprotocol.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "4.0.0-pre.2"
+uint = { version = "0.8.3", default-features = false }
+multi-token-standard = { git = "https://github.com/shipsgold/multi-token-standard-impl", branch = "feat/initial-token" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rust_decimal = "1.15"
+rust_decimal_macros = "1.15"
+
+
+[dev-dependencies]
+near-sdk-sim = "4.0.0-pre.2"
+bs58 = "0.4"

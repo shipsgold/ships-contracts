@@ -10,12 +10,8 @@ export const setupNear = async (networkID :config.SupportedNetworkType, keyStore
 
 
 /*
-
-  const near = setupNear()
-  const contractAccount = new Account(connection, contractName);
+const near = setupNear()
+const contractAccount = new Account(connection, contractName);
 contractAccount.addAccessKey = (publicKey) => contractAccount.addKey(publicKey, contractName, contractMethods.changeMethods, parseNearAmount('0.1'));
 const contract = new Contract(contractAccount, contractName, contractMethods);
-
-
-
 */

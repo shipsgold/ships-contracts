@@ -1,4 +1,5 @@
 // as originally captured by https://github.com/near/core-contracts/blob/master/staking-pool
+use near_sdk::require;
 use uint::construct_uint;
 construct_uint! {
   /// 256-bit unsigned integer.
@@ -12,8 +13,8 @@ pub struct SafeFraction {
 
 impl SafeFraction {
   pub fn assert_valid(&self) {
-    assert_ne!(self.denominator, 0, "Denominator must be a positive number");
-    assert!(
+    require!(self.denominator != 0, "Denominator must be a positive number");
+    require!(
       self.numerator <= self.denominator,
       "The fraction must be less or equal to 1"
     );
