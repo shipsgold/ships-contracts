@@ -45,7 +45,7 @@ describe("it tests contract connection", () => {
     })
    console.log( guestContract.contract.account.accountId)
     try {
-     await contract.new(devAcct.accountId, 10)
+     await contract.new(devAcct.accountId, devAcct.accountId, 10)
     }catch(e){
       console.warn(e)
     }
